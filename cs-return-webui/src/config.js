@@ -1,0 +1,1 @@
+export const apiServer = 'http://10.1.1.190:53300';

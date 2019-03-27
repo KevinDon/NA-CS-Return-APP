@@ -1,0 +1,71 @@
+{
+  "expo": {
+    "name": "WarehouseApp",
+    "slug": "WarehouseApp",
+    "privacy": "public",
+    "sdkVersion": "32.0.0",
+    "platforms": [
+      "ios",
+      "android"
+    ],
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "updates": {
+      "fallbackToCacheTimeout": 0
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true
+    },
+    "description": ""
+  },
+  "apiServer": "http://10.1.1.190:53300",
+  "imageServer": "http://10.1.1.190:53500",
+  "smApiServer": "http://10.1.9.118:53300",
+  "version": "1.3.4",
+  "returnReasons": [
+    "Requested by New Aim",
+    "Wrong address",
+    "Customer's own",
+    "Unclaimed",
+    "Label lost",
+    "Label damaged",
+    "Customer rejected",
+    "Courier refused to deliver",
+    "More than one label",
+    "Damaged in transit",
+    "Other"
+  ],
+  "returnCouriers": [
+    "Australia post",
+    "Fastway",
+    "Allied",
+    "Customer's Own",
+    "Toll",
+    "Other"
+  ],
+  "processTypes" : [
+    "ASN",
+    "SecondHand",
+    "Dispose",
+    "SEV1"
+  ],
+  "asnOptions": [
+    "aa001",
+    "aa002",
+    "aa003",
+    "aa004",
+    "aa005",
+    "aa006",
+    "aa007",
+    "aa008"
+  ]
+}
