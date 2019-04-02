@@ -7,10 +7,10 @@ const OmsDbConfig = {
 };
 
 const SalesMessageDbConfig = {
-    host     : '10.1.1.208',
+    host     : '192.168.2.200',
     user     : 'root',
-    password : 'asdf1234',
-    database : 'csreturn',
+    password : 'Newaim#2018',
+    database : 'salemessage_newaim_kelley',
     connectTimeout : 50000,
     multipleStatements: true
 };

@@ -3,7 +3,10 @@ import {apiServer, imageServer, smApiServer} from './app.json';
 export default class ApiClient{
   findDataByTracking = async tracking => {
     let url = apiServer + `/csreturn/findDataByTracking?tracking=${tracking}`;
+    console.log(apiServer);
+    console.log(url);
     let response = await fetch(url);
+    // console.log('response转json',await response.json());
     return await response.json();
   };
 
@@ -19,7 +22,7 @@ export default class ApiClient{
     });
     return await response.json();
   };
-  
+
   findTicket = async orderNo => {
     let url = apiServer + `/csreturn/findTicket?orderNo=${orderNo}`;
     let response = await fetch(url);

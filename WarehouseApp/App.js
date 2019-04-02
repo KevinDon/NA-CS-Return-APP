@@ -3,10 +3,11 @@ import {Platform, StyleSheet, Text, View, Image, TextInput, ActivityIndicator, S
 import {Header, Card, Button, ButtonGroup, Icon, FormLabel } from 'react-native-elements';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view'
 import BarcodeScanner from "./components/BarcodeScanner";
+import PhotoCamera from "./components/PhotoCamera";
 import ApiClient from "./ApiClient";
 import {returnReasons, returnCouriers, version, asnOptions, processTypes, imageServer} from './app.json';
 import RNPickerSelect from 'react-native-picker-select';
-import { ImagePicker } from 'expo';
+import {ImagePicker, Permissions,} from 'expo';
 
 const ProcessType = {
   ASN: 'ASN',
@@ -20,14 +21,16 @@ const ViewMode = {
   Loading: 2,
   Details: 3,
   EnterBarcode: 4,
-  Login: 5
+  Login: 5,
+  TakePhoto:6
 };
 
 const ScanType = {
   Tracking: 0,
   SKUBarcode: 1,
   DeliveryTracking: 2,
-  ReturnTracking: 3
+  ReturnTracking: 3,
+  SeqNum:4
 };
 
 export default class App extends React.Component {
@@ -148,7 +151,7 @@ export default class App extends React.Component {
     // this.test();
     // this.handleReturnUpdate('process_secondhand', this.getDefaultProcessSecondHandValue());
     // this.setProcessSecondHandWithDefaultValue();
-    this.getNextSeqNo();
+    //this.getNextSeqNo();
   }
 
   updateNextSeqNo = seqNo => {
@@ -160,6 +163,7 @@ export default class App extends React.Component {
   };
 
   getNextSeqNo = async () => {
+    console.log(1);
     let client = new ApiClient();
     let data = await client.getNextSeqNo();
     if(!!data && !!data.nextSeqNo){
@@ -301,7 +305,9 @@ export default class App extends React.Component {
       return await this.handleScanDeliveryTracking(scanData);
     }  else if(scanType === ScanType.ReturnTracking) {
       return await this.handleScanReturnTracking(scanData);
-    } else {
+    } else if(scanType === ScanType.SeqNum){
+      this.handleSeqNum(scanData);
+    }else {
       return await this.handleScanSkuBarcode(scanData);
     }
   };
@@ -452,6 +458,20 @@ export default class App extends React.Component {
       viewMode: ViewMode.Scanning,
       scanType: ScanType.ReturnTracking
     });
+  };
+
+  handleStartTakingPhoto = () => {
+    this.setState({
+        viewMode: ViewMode.TakePhoto,
+    });
+  };
+
+  //照相回调函数
+  handleTakingPhoto = async (scope) =>{
+    let photo = await scope.camera.takePictureAsync();
+    console.log(photo);
+    let uri = photo.uri;
+    scope.returnImage();
   };
 
   handleProductUpdate = (key, value) => {
@@ -677,12 +697,51 @@ export default class App extends React.Component {
     )
   };
 
+  renderTakePhotoView = () => {  PhotoCamera
+    return (
+        <View style={styles.container}>
+            <View style={styles.contentContainer}>
+                <View style={styles.barcodeContainer2}>
+                    <PhotoCamera
+                    onTakingPhoto = {this.handleTakingPhoto}
+                    onCancelScan = {this.handleCancelScan}
+                  />
+                </View>
+            </View>
+        </View>
+    )
+  };
+
   testScroll = () => {
     this.scroll.props.scrollToPosition(0, 300)
   };
 
   scrollToInput = reactNode => {
     this.scroll.props.scrollToFocusedInput(reactNode)
+  };
+
+  //调用序列号扫码
+  createSeq = () => {
+      this.setState({
+          viewMode: ViewMode.Scanning,
+          scanType: ScanType.SeqNum
+      });
+  };
+
+  //序列号扫码后回调填写
+  handleSeqNum = (scanData) =>{
+      //更新填写条形码
+      this.updateNextSeqNo(scanData.data);
+      this.setState({
+          viewMode: ViewMode.Details
+      });
+  };
+
+  //测试相册功能
+  pickers = () =>{
+    //console.log(Permissions.askAsync(Permissions.CAMER)==='granted');
+    //console.log(Permissions.askAsync(Permissions.CAMERA_ROLL)==='granted');
+    //Permissions.askAsync(Permissions.CAMERA_ROLL);
   };
 
   renderDetailsView = () => {
@@ -733,10 +792,110 @@ export default class App extends React.Component {
         <View style={styles.infoContainer}>
           <Card title='Return Details'>
             <FormLabel>{next_seq_no.label}</FormLabel>
-            <TextInput style={[styles.textInput, {flex: 1}]}
-                       value={next_seq_no.value}
-                       editable = {false}
-            />
+            <View style={{flex:1, flexDirection:'row', justifyContent:'center', alignItems:'center'}} >
+                <TextInput style={[styles.textInput, {flex: 1}]}
+                          value={next_seq_no.value}
+                          editable = {false}
+               />
+                <Icon
+                    name={'barcode'}
+                    type='font-awesome'
+                    onPress={() => this.createSeq()}
+                />
+            </View>
+              <FormLabel>{productDetails.barcode.label}</FormLabel>
+              <View style={{flex:1, flexDirection:'row', justifyContent:'center', alignItems:'center'}}>
+                  <TextInput style={[styles.textInput, {flex: 1}]}
+                             value={productDetails.barcode.value}
+                             autoCorrect={false}
+                             onChangeText={(text) => this.handleProductUpdate('barcode', text)}
+                             onSubmitEditing={async () => {
+                                 await this.findSkuByBarcode(this.state.productDetails.barcode.value);
+                                 this.focusNextField('2');
+                             }}
+                             ref='1'
+                             blurOnSubmit={false}
+                             onFocus={(event) => {
+                                 this.scrollToInput(findNodeHandle(event.target))
+                             }}
+                  />
+                  <Icon
+                      name={'search'}
+                      type='font-awesome'
+                      onPress={() => this.findSkuByBarcode(this.state.productDetails.barcode.value)}
+                  />
+              </View>
+              <FormLabel>{productDetails.sku.label}</FormLabel>
+              <TextInput style={styles.textInput}
+                         value={productDetails.sku.value}
+                         autoCorrect={false}
+                         onChangeText={(text) => this.handleProductUpdate('sku', text)}
+                         blurOnSubmit={false}
+                         ref='5'
+                         onSubmitEditing={() => {
+                             // this.focusNextField('30');
+                         }}
+                         onFocus={(event) => {
+                             this.scrollToInput(findNodeHandle(event.target))
+                         }}
+              />
+              <FormLabel>{productDetails.delivery_tracking_no.label}</FormLabel>
+              <View style={{flex:1, flexDirection:'row', justifyContent:'center', alignItems:'center'}}>
+                  <TextInput style={[styles.textInput, {flex: 1}]}
+                             value={productDetails.delivery_tracking_no.value}
+                             autoCorrect={false}
+                             onChangeText={(text) => this.handleProductUpdate('delivery_tracking_no', text)}
+                             onSubmitEditing={async () => {
+                                 await this.loadDetails(productDetails.delivery_tracking_no.value);
+                                 this.focusNextField('3');
+                             }}
+                             ref='2'
+                             blurOnSubmit={false}
+                             onFocus={(event) => {
+                                 this.scrollToInput(findNodeHandle(event.target))
+                             }}
+                  />
+                  <Icon
+                      name={'search'}
+                      type='font-awesome'
+                      onPress={() => this.loadDetails(productDetails.delivery_tracking_no.value)}
+                  />
+              </View>
+              <FormLabel>{returnDetails.return_tracking_no.label}</FormLabel>
+              <View style={{flex:1, flexDirection:'row', justifyContent:'center', alignItems:'center'}}>
+                  <TextInput style={[styles.textInput, {flex: 1}]}
+                             value={returnDetails.return_tracking_no.value}
+                             autoCorrect={false}
+                             onChangeText={(text) => this.handleReturnUpdate('return_tracking_no', text)}
+                             onSubmitEditing={async () => {
+                                 await this.loadDetails(returnDetails.return_tracking_no.value);
+                                 this.focusNextField('4');
+                             }}
+                             ref='3'
+                             blurOnSubmit={false}
+                             onFocus={(event) => {
+                                 this.scrollToInput(findNodeHandle(event.target))
+                             }}
+                  />
+                  <Icon
+                      name={'search'}
+                      type='font-awesome'
+                      onPress={() => this.loadDetails(returnDetails.return_tracking_no.value)}
+                  />
+              </View>
+              <FormLabel>{returnDetails.note.label}</FormLabel>
+              <TextInput style={styles.textInput}
+                         value={returnDetails.note.value}
+                         autoCorrect={false}
+                         onChangeText={(text) => this.handleReturnUpdate('note', text)}
+                         ref='4'
+                         returnKeyType='next'
+                         blurOnSubmit={false}
+                         onSubmitEditing={() => this.focusNextField('5')}
+                         onFocus={(event) => {
+                             this.scrollToInput(findNodeHandle(event.target))
+                         }}
+              />
             <FormLabel><Text>{returnDetails.return_reason.label}</Text></FormLabel>
             <View style={styles.pickerSelectView}>
               <RNPickerSelect
@@ -758,99 +917,67 @@ export default class App extends React.Component {
                 style={{viewContainer: styles.pickerSelect}}
               />
             </View>
-            <FormLabel>{productDetails.barcode.label}</FormLabel>
-            <View style={{flex:1, flexDirection:'row', justifyContent:'center', alignItems:'center'}}>
-              <TextInput style={[styles.textInput, {flex: 1}]}
-                         value={productDetails.barcode.value}
-                         autoCorrect={false}
-                         onChangeText={(text) => this.handleProductUpdate('barcode', text)}
-                         onSubmitEditing={async () => {
-                           await this.findSkuByBarcode(this.state.productDetails.barcode.value);
-                           this.focusNextField('2');
-                         }}
-                         ref='1'
-                         blurOnSubmit={false}
-                         onFocus={(event) => {
-                           this.scrollToInput(findNodeHandle(event.target))
-                         }}
-              />
-              <Icon
-                name={'search'}
-                type='font-awesome'
-                onPress={() => this.findSkuByBarcode(this.state.productDetails.barcode.value)}
-              />
-            </View>
-            <FormLabel>{productDetails.delivery_tracking_no.label}</FormLabel>
-            <View style={{flex:1, flexDirection:'row', justifyContent:'center', alignItems:'center'}}>
-              <TextInput style={[styles.textInput, {flex: 1}]}
-                         value={productDetails.delivery_tracking_no.value}
-                         autoCorrect={false}
-                         onChangeText={(text) => this.handleProductUpdate('delivery_tracking_no', text)}
-                         onSubmitEditing={async () => {
-                           await this.loadDetails(productDetails.delivery_tracking_no.value);
-                           this.focusNextField('3');
-                         }}
-                         ref='2'
-                         blurOnSubmit={false}
-                         onFocus={(event) => {
-                           this.scrollToInput(findNodeHandle(event.target))
-                         }}
-              />
-              <Icon
-                name={'search'}
-                type='font-awesome'
-                onPress={() => this.loadDetails(productDetails.delivery_tracking_no.value)}
-              />
-            </View>
-            <FormLabel>{returnDetails.return_tracking_no.label}</FormLabel>
-            <View style={{flex:1, flexDirection:'row', justifyContent:'center', alignItems:'center'}}>
-              <TextInput style={[styles.textInput, {flex: 1}]}
-                         value={returnDetails.return_tracking_no.value}
-                         autoCorrect={false}
-                         onChangeText={(text) => this.handleReturnUpdate('return_tracking_no', text)}
-                         onSubmitEditing={async () => {
-                           await this.loadDetails(returnDetails.return_tracking_no.value);
-                           this.focusNextField('4');
-                         }}
-                         ref='3'
-                         blurOnSubmit={false}
-                         onFocus={(event) => {
-                           this.scrollToInput(findNodeHandle(event.target))
-                         }}
-              />
-              <Icon
-                name={'search'}
-                type='font-awesome'
-                onPress={() => this.loadDetails(returnDetails.return_tracking_no.value)}
-              />
-            </View>
-            <FormLabel>{returnDetails.note.label}</FormLabel>
-            <TextInput style={styles.textInput}
-                       value={returnDetails.note.value}
-                       autoCorrect={false}
-                       onChangeText={(text) => this.handleReturnUpdate('note', text)}
-                       ref='4'
-                       returnKeyType='next'
-                       blurOnSubmit={false}
-                       onSubmitEditing={() => this.focusNextField('5')}
-                       onFocus={(event) => {
-                         this.scrollToInput(findNodeHandle(event.target))
-                       }}
-            />
-            <FormLabel>{productDetails.sku.label}</FormLabel>
-            <TextInput style={styles.textInput}
-                       value={productDetails.sku.value}
-                       autoCorrect={false}
-                       onChangeText={(text) => this.handleProductUpdate('sku', text)}
-                       blurOnSubmit={false}
-                       ref='5'
-                       onSubmitEditing={() => {
-                         // this.focusNextField('30');
-                       }}
-                       onFocus={(event) => {
-                         this.scrollToInput(findNodeHandle(event.target))
-                       }}
-            />
+              <FormLabel>{returnDetails.process_type.label}</FormLabel>
+              <View style={styles.pickerSelectView}>
+                  <RNPickerSelect
+                      hideIcon
+                      useNativeAndroidPickerStyle={false}
+                      placeholder={{
+                          label: 'Select a process type',
+                          value: null,
+                          color: '#9EA0A4',
+                      }}
+                      items={processTypeItems}
+                      value={this.state.returnDetails.process_type.value}
+                      onValueChange={(value) => {
+                          this.handleReturnUpdate('process_type', value);
+                          this.focusNextField('30');
+                      }}
+                      ref={(el) => {
+                          this.inputRefs.picker = el;
+                      }}
+                      style={{viewContainer: styles.pickerSelect}}
+                  />
+              </View>
+              {
+                  processType === ProcessType.ASN &&
+                  <View style={styles.pickerSelectView}>
+                      <RNPickerSelect
+                          hideIcon
+                          useNativeAndroidPickerStyle={false}
+                          placeholder={{
+                              label: 'Select an ASN',
+                              value: null,
+                              color: '#9EA0A4',
+                          }}
+                          items={asnItems}
+                          value={this.state.returnDetails.process_asn.value}
+                          onValueChange={(value) => {
+                              this.handleReturnUpdate('process_asn', value);
+                          }}
+                          ref={(el) => {
+                              this.inputRefs.picker = el;
+                          }}
+                          style={{viewContainer: styles.pickerSelect}}
+                      />
+                  </View>
+              }
+              {
+                  processType === ProcessType.SecondHand &&
+                  <TextInput style={styles.textInput}
+                             autoCorrect={false}
+                      // autoFocus={true}
+                             value={this.state.returnDetails.process_secondhand.value}
+                             onChangeText={(text) => this.handleReturnUpdate('process_secondhand', text)}
+                             ref='22'
+                             returnKeyType='next'
+                             blurOnSubmit={false}
+                             onSubmitEditing={() => this.focusNextField('30')}
+                             onFocus={(event) => {
+                                 this.scrollToInput(findNodeHandle(event.target))
+                             }}
+                  />
+              }
             <FormLabel>{returnDetails.return_courier_name.label}</FormLabel>
             <View style={styles.pickerSelectView}>
               <RNPickerSelect
@@ -872,67 +999,9 @@ export default class App extends React.Component {
                 style={{viewContainer: styles.pickerSelect}}
               />
             </View>
-            <FormLabel>{returnDetails.process_type.label}</FormLabel>
-            <View style={styles.pickerSelectView}>
-              <RNPickerSelect
-                hideIcon
-                useNativeAndroidPickerStyle={false}
-                placeholder={{
-                  label: 'Select a process type',
-                  value: null,
-                  color: '#9EA0A4',
-                }}
-                items={processTypeItems}
-                value={this.state.returnDetails.process_type.value}
-                onValueChange={(value) => {
-                  this.handleReturnUpdate('process_type', value);
-                  this.focusNextField('30');
-                }}
-                ref={(el) => {
-                  this.inputRefs.picker = el;
-                }}
-                style={{viewContainer: styles.pickerSelect}}
-              />
-            </View>
-            {
-              processType === ProcessType.ASN &&
-              <View style={styles.pickerSelectView}>
-                <RNPickerSelect
-                  hideIcon
-                  useNativeAndroidPickerStyle={false}
-                  placeholder={{
-                    label: 'Select an ASN',
-                    value: null,
-                    color: '#9EA0A4',
-                  }}
-                  items={asnItems}
-                  value={this.state.returnDetails.process_asn.value}
-                  onValueChange={(value) => {
-                    this.handleReturnUpdate('process_asn', value);
-                  }}
-                  ref={(el) => {
-                    this.inputRefs.picker = el;
-                  }}
-                  style={{viewContainer: styles.pickerSelect}}
-                />
-              </View>
-            }
-            {
-              processType === ProcessType.SecondHand &&
-              <TextInput style={styles.textInput}
-                         autoCorrect={false}
-                         // autoFocus={true}
-                         value={this.state.returnDetails.process_secondhand.value}
-                         onChangeText={(text) => this.handleReturnUpdate('process_secondhand', text)}
-                         ref='22'
-                         returnKeyType='next'
-                         blurOnSubmit={false}
-                         onSubmitEditing={() => this.focusNextField('30')}
-                         onFocus={(event) => {
-                           this.scrollToInput(findNodeHandle(event.target))
-                         }}
-              />
-            }
+
+
+
             <FormLabel>{returnDetails.user.label}</FormLabel>
             <TextInput style={styles.textInput}
                        value={returnDetails.user.value}
@@ -959,54 +1028,56 @@ export default class App extends React.Component {
                          this.scrollToInput(findNodeHandle(event.target))
                        }}
             />
-            <FormLabel>{productDetails.job_no.label}</FormLabel>
-            <TextInput style={styles.textInput}
-                       value={productDetails.job_no.value}
-                       autoCorrect={false}
-                       onChangeText={(text) => this.handleProductUpdate('job_no', text)}
-                       ref='32'
-                       returnKeyType='next'
-                       blurOnSubmit={false}
-                       onSubmitEditing={() => this.focusNextField('33')}
-                       onFocus={(event) => {
-                         this.scrollToInput(findNodeHandle(event.target))
-                       }}
-            />
-            <FormLabel>{productDetails.unit_cost.label}</FormLabel>
-            <TextInput style={styles.textInput}
-                       value={productDetails.unit_cost.value.toString()}
-                       autoCorrect={false}
-                       keyboardType = 'numeric'
-                       onChangeText={(text) => this.handleProductUpdate('unit_cost', text)}
-                       ref='33'
-                       returnKeyType='next'
-                       blurOnSubmit={false}
-                       onSubmitEditing={() => this.focusNextField('34')}
-                       onFocus={(event) => {
-                         this.scrollToInput(findNodeHandle(event.target))
-                       }}
-            />
-            <FormLabel>{returnDetails.result.label}</FormLabel>
-            <TextInput style={styles.textInput}
-                       autoCorrect={false}
-                       value={returnDetails.result.value}
-                       onChangeText={(text) => this.handleReturnUpdate('result', text)}
-                       ref='34'
-                       returnKeyType='next'
-                       blurOnSubmit={false}
-                       onSubmitEditing={() => this.focusNextField('35')}
-                       onFocus={(event) => {
-                         this.scrollToInput(findNodeHandle(event.target))
-                       }}
-            />
-            <FormLabel>{productDetails.post_est.label}</FormLabel>
-            <TextInput style={styles.textInput}
-                       autoCorrect={false}
-                       keyboardType = 'numeric'
-                       value={productDetails.post_est.value.toString()}
-                       onChangeText={(text) => this.handleProductUpdate('post_est', text)}
-                       ref='35'
-            />
+
+            {/*<FormLabel>{productDetails.job_no.label}</FormLabel>*/}
+            {/*<TextInput style={styles.textInput}*/}
+                       {/*value={productDetails.job_no.value}*/}
+                       {/*autoCorrect={false}*/}
+                       {/*onChangeText={(text) => this.handleProductUpdate('job_no', text)}*/}
+                       {/*ref='32'*/}
+                       {/*returnKeyType='next'*/}
+                       {/*blurOnSubmit={false}*/}
+                       {/*onSubmitEditing={() => this.focusNextField('33')}*/}
+                       {/*onFocus={(event) => {*/}
+                         {/*this.scrollToInput(findNodeHandle(event.target))*/}
+                       {/*}}*/}
+            {/*/>*/}
+            {/*<FormLabel>{productDetails.unit_cost.label}</FormLabel>*/}
+            {/*<TextInput style={styles.textInput}*/}
+                       {/*value={productDetails.unit_cost.value.toString()}*/}
+                       {/*autoCorrect={false}*/}
+                       {/*keyboardType = 'numeric'*/}
+                       {/*onChangeText={(text) => this.handleProductUpdate('unit_cost', text)}*/}
+                       {/*ref='33'*/}
+                       {/*returnKeyType='next'*/}
+                       {/*blurOnSubmit={false}*/}
+                       {/*onSubmitEditing={() => this.focusNextField('34')}*/}
+                       {/*onFocus={(event) => {*/}
+                         {/*this.scrollToInput(findNodeHandle(event.target))*/}
+                       {/*}}*/}
+            {/*/>*/}
+            {/*<FormLabel>{returnDetails.result.label}</FormLabel>*/}
+            {/*<TextInput style={styles.textInput}*/}
+                       {/*autoCorrect={false}*/}
+                       {/*value={returnDetails.result.value}*/}
+                       {/*onChangeText={(text) => this.handleReturnUpdate('result', text)}*/}
+                       {/*ref='34'*/}
+                       {/*returnKeyType='next'*/}
+                       {/*blurOnSubmit={false}*/}
+                       {/*onSubmitEditing={() => this.focusNextField('35')}*/}
+                       {/*onFocus={(event) => {*/}
+                         {/*this.scrollToInput(findNodeHandle(event.target))*/}
+                       {/*}}*/}
+            {/*/>*/}
+            {/*<FormLabel>{productDetails.post_est.label}</FormLabel>*/}
+            {/*<TextInput style={styles.textInput}*/}
+                       {/*autoCorrect={false}*/}
+                       {/*keyboardType = 'numeric'*/}
+                       {/*value={productDetails.post_est.value.toString()}*/}
+                       {/*onChangeText={(text) => this.handleProductUpdate('post_est', text)}*/}
+                       {/*ref='35'*/}
+            {/*/>*/}
+
           </Card>
           {/*<Card title='Images'>*/}
             {/*<Button title='Select' onPress={this.pickImage}></Button>*/}
@@ -1117,7 +1188,9 @@ export default class App extends React.Component {
       return this.renderDetailsView();
     } else if(viewMode === ViewMode.EnterBarcode){
       return this.renderEnterBarcodeView();
-    } else {
+    } else if(viewMode === ViewMode.TakePhoto){
+        return this.renderTakePhotoView();
+    }else{
       return this.renderHomeView();
     }
   };

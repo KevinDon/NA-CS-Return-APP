@@ -1,9 +1,11 @@
 import {DbServiceObj} from "./DbService";
+import AppUtil from "./AppUtil";
 import * as mssql from 'mssql';
 import * as json2xls from 'json2xls';
 import * as fs from 'fs';
 import * as stream from 'stream';
 import * as mysql from 'mysql';
+
 
 enum ActionType {
     Add,
@@ -277,8 +279,46 @@ export default class CSReturnController{
 
     async login(req, res){
         let data = req.body;
-        res.send({
-            status: 1
-        })
+        let account = data.account;
+        let password = data.password;
+        // let cmd = `select f_loginname,f_password from dl_cs_user where f_loginname='${account}'`;
+        // let row = await DbServiceObj.executeSmQuery(cmd);
+        let $data = {
+            "password": password,
+            "timestamp" :new Date().getTime(),
+            "username": account
+        };
+        AppUtil.postSmgLogin(req, res, 'http://dev.test.com/api/index/login', $data)
+
+        /* TODO
+        if(!!row[0] && typeof row[0] == "object"){
+               if (row[0].f_password == crypto.createHash('md5').update(password).digest('hex')){
+                   res.send({
+                       msg:'Land successfully',
+                       status: 1
+                   })
+               }else{
+                   res.send({
+                       msg:'Wrong password',
+                       status: 2
+                   })
+               }
+        }else{
+            res.send({
+                msg:'Account does not exist',
+                status: 2
+            })
+        }
+        */
+    }
+
+    async findDataBySeqNo(req, res){
+        let data = req.body;
+
+        let cmd = ` SELECT * FROM dl_return WHERE f_seq_no = '${data.seq_no}'`;
+        let result = await DbServiceObj.executeSmQuery(cmd);
+        if(result.length > 0) result = JSON.parse(JSON.stringify(result[0]));
+        let response = AppUtil.responseJSON('1', [result], '查询成功', true);
+        res.send(response);
     }
 }

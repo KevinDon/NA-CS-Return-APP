@@ -22,6 +22,7 @@ app.get('/csreturn/download', async (req, res) => await new CSReturnController()
 app.get('/csreturn/findSkuByBarcode', async (req, res) => await new CSReturnController().findSkuByBarcode(req, res));
 app.post('/csreturn/login', async (req, res) => await new CSReturnController().login(req, res));
 app.get('/csreturn/getNextSeqNo', async (req, res) => await new CSReturnController().getNextSeqNo(req, res));
+app.post('/csreturn/findDataBySeqNo', async (req, res) => await new CSReturnController().findDataBySeqNo(req, res));
 
 const port = ServerConfig.port;
 app.listen(port, () => {
