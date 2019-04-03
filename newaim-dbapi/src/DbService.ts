@@ -50,6 +50,20 @@ class DbService {
                 if(!!err) reject();
                 return resolve(rows);
             });
+        }).catch((err)=>{
+            console.log(err)
+        })
+    }
+
+    async updateSmQuery(cmd, params){
+        return new Promise<any>(async (resolve, reject) => {
+            let connectoin = this.getSmDbConnection();
+            connectoin.query(cmd, params, function (err, rows, fields) {
+                if(!!err) reject(err);
+                return resolve(rows);
+            });
+        }).catch((err)=>{
+            console.log(err)
         })
     }
 

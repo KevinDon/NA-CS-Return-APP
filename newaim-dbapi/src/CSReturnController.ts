@@ -90,6 +90,7 @@ export default class CSReturnController{
             DbServiceObj.executeSmQuery(cmd)
         ]);
 
+
         let responseData = data1;
         if(!data1 && !!data2) responseData = data2;
         if(!!data3 && data3.length > 0) responseData = data3[0];
@@ -100,15 +101,29 @@ export default class CSReturnController{
     async saveReturn(req, res){
         let requestData = req.body;
         let cmd = '';
-        let seqNo = '';
-        let nextSeqNo = '';
         let actionType = null;
+        /*
         let fields = ['barcode', 'delivery_tracking_no', 'customer_order_no', 'sku',
             'job_no', 'process_type', 'process_asn', 'process_secondhand', 'result',
             'post_est', 'unit_cost', 'ticket_no', 'return_reason', 'return_courier_name',
             'return_tracking_no', 'order_no', 'order_user_nick', 'note', 'user'
+        ];  */
+        let fields = ['f_barcode', 'f_delivery_tracking_no', 'f_customer_order_no', 'f_sku','f_seq_no',
+            'f_job_no', 'f_process', 'f_process_asn', 'f_process_secondhand', 'f_result',
+            'f_post_est', 'f_unit_cost', 'f_ticket_no', 'f_return_reason', 'f_return_courier_name',
+            'f_return_tracking_no', 'f_order_no', 'f_consignee_name', 'f_note', 'f_create_userid', 'f_create_username'
         ];
+        let columns = [];
+        let placeholders = [];
+        let values = [];
 
+        for(let field of fields){
+            if(requestData[field] == null || requestData[field] == undefined) continue;
+            columns.push(field);
+            placeholders.push('?');
+            values.push(requestData[field]);
+        }
+        /* TODO
         if(!!requestData.seq_no){
             let updateColumns = [];
             let values = [];
@@ -118,12 +133,12 @@ export default class CSReturnController{
                 values.push(requestData[field]);
             }
 
-            values.push(requestData.seq_no);
+            values.push(requestData.f_seq_no);
             cmd = mysql.format(`update cs_return set ${updateColumns.join()} where seq_no=?;
             SELECT concat('A', AUTO_INCREMENT) as next_id
                     FROM information_schema.TABLES
                     WHERE TABLE_SCHEMA = "csreturn"
-                    AND TABLE_NAME = "cs_return_scan_sequence" 
+                    AND TABLE_NAME = "cs_return_scan_sequence"
             `, values);
             seqNo = requestData.seq_no;
             actionType = ActionType.Update;
@@ -144,13 +159,13 @@ export default class CSReturnController{
 
             cmd = mysql.format(`insert into cs_return_scan_sequence(tracking) values('');
                     set @id=concat('A', LAST_INSERT_ID());
-                    insert into cs_return(seq_no, ${columns.join()}) 
+                    insert into cs_return(seq_no, ${columns.join()})
                     values(@id, ${placeholders.join()});
                     select @id;
                     SELECT concat('A', AUTO_INCREMENT) as next_id
                     FROM information_schema.TABLES
                     WHERE TABLE_SCHEMA = "csreturn"
-                    AND TABLE_NAME = "cs_return_scan_sequence" 
+                    AND TABLE_NAME = "cs_return_scan_sequence"
                     ;`, values);
 
             let data = await DbServiceObj.executeSmQuery(cmd);
@@ -163,13 +178,26 @@ export default class CSReturnController{
                 nextSeqNo = data[4][0]['next_id'];
             }
         }
-
-        res.send({
-            status: 1,
-            nextSeqNo: nextSeqNo
-        });
-
-        await this.addAuditLog(seqNo, requestData.user, actionType, JSON.stringify(req.body));
+        */
+        let selCmd = `SELECT count(*) AS count  FROM dl_return WHERE f_seq_no = "${requestData.f_seq_no}"`;
+        let selData = await DbServiceObj.executeSmQuery(selCmd);
+        if(selData.length > 0) selData = JSON.parse(JSON.stringify(selData[0]));
+        if(selData.count > 0){
+            //update
+            cmd = `UPDATE dl_return SET ${columns.join('=?, ')} =? WHERE f_seq_no= "${requestData.f_seq_no}"`;
+            await DbServiceObj.updateSmQuery(cmd, values);
+            let response = AppUtil.responseJSON('1', [], 'Update successful.', true);
+            res.send(response);
+        }else{
+            //insert
+            cmd = mysql.format(`insert into dl_return (${columns.join()}) values(${placeholders.join(',')})`, values);
+            let data = await DbServiceObj.executeSmQuery(cmd);
+            actionType = ActionType.Add;
+            if(data.length > 0) data = JSON.parse(JSON.stringify(data[0]));
+            let response = AppUtil.responseJSON('1', [], 'Save Successfully', true);
+            await this.addAuditLog(data.insertId, requestData.f_seq_no, requestData.user, actionType, JSON.stringify(req.body));
+            res.send(response);
+        }
     }
 
     async getNextSeqNo(req, res){
@@ -222,7 +250,7 @@ export default class CSReturnController{
 
     async getAllReturn(req, res){
         let cmd = `select seq_no, DATE_FORMAT(date, "%Y-%m-%d %H:%i:%s") as date, sku, barcode, job_no, unit_cost,
-            delivery_tracking_no, order_no, customer_order_no, order_user_nick, post_est, return_reason, 
+            delivery_tracking_no, order_no, customer_order_no, order_user_nick, post_est, return_reason,
             return_tracking_no, return_courier_name, user, ticket_no,
             note, process_asn, process_secondhand, process_type, update_salemessage
             from cs_return
@@ -255,7 +283,7 @@ export default class CSReturnController{
             sku, return_courier_name, user, ticket_no, job_no,
             unit_cost, process_asn, process_secondhand, process_type, post_est,
             order_no, customer_order_no, order_user_nick, update_salemessage
-            from cs_return            
+            from cs_return
             order by id`;
         let data = await DbServiceObj.executeSmQuery(cmd);
 
@@ -270,10 +298,10 @@ export default class CSReturnController{
         readStream.pipe(res);
     }
 
-    async addAuditLog(seq_no, user, actionType: ActionType, data){
+    async addAuditLog(returnid, seq_no, user, actionType: ActionType, data){
         if(typeof data !== 'string') data = JSON.stringify(data);
-        let cmd = mysql.format(`insert into cs_return_audit_log(seq_no, user, action, data) 
-            values(?, ?, ?, ?)`, [seq_no, user, ActionType[actionType], data]);
+        let cmd = mysql.format(`insert into dl_return_audit_log(f_returnid, f_seq_no, f_user, f_action, f_data)
+            values(?, ?, ?, ?, ?)`, [returnid, seq_no, user, ActionType[actionType], data]);
         await DbServiceObj.executeSmQuery(cmd);
     }
 

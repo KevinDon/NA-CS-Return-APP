@@ -22,7 +22,8 @@ const ViewMode = {
   Details: 3,
   EnterBarcode: 4,
   Login: 5,
-  TakePhoto:6
+  TakePhoto:6,
+  PhotoSelect:7
 };
 
 const ScanType = {
@@ -53,6 +54,7 @@ export default class App extends React.Component {
       label: 'Seq No.',
       value: ''
     },
+
 
     productDetails: {
       barcode: {
@@ -97,7 +99,7 @@ export default class App extends React.Component {
       },
     },
     returnDetails: {
-      seq_no: {
+        seq_no: {
         value: ''
       },
       user: {
@@ -152,6 +154,7 @@ export default class App extends React.Component {
     // this.handleReturnUpdate('process_secondhand', this.getDefaultProcessSecondHandValue());
     // this.setProcessSecondHandWithDefaultValue();
     //this.getNextSeqNo();
+      //console.log(this.state);
   }
 
   updateNextSeqNo = seqNo => {
@@ -186,12 +189,30 @@ export default class App extends React.Component {
   };
 
   handleLogin = async (account, password) => {
+    this.setState({
+        viewMode: ViewMode.Loading
+    });
     let client = new ApiClient();
     let responseData = await client.login(account, password);
-    this.setState({
-      viewMode: ViewMode.Details
-    });
-    this.handleReturnUpdate('user', account);
+
+    if(responseData.msg==="success"){
+      console.log(1);
+      this.setState({
+          viewMode: ViewMode.Details
+      });
+      this.handleReturnUpdate('user', account);
+    }else{
+      console.log(2);
+      this.setState({
+          viewMode: ViewMode.Login
+      });
+      Alert.alert(
+          'Login Failed',
+          'No account or Password error',
+          [{text: 'OK'}],
+      );
+      return;
+    }
   };
 
   handleCancelScan = () => {
@@ -306,13 +327,14 @@ export default class App extends React.Component {
     }  else if(scanType === ScanType.ReturnTracking) {
       return await this.handleScanReturnTracking(scanData);
     } else if(scanType === ScanType.SeqNum){
-      this.handleSeqNum(scanData);
+      this.handleScanSeqNum(scanData);
     }else {
       return await this.handleScanSkuBarcode(scanData);
     }
   };
 
   loadDetails = async(tracking) => {
+    console.log(tracking);
     if(!tracking || tracking.trim() === '') return;
 
     this.setState({
@@ -331,6 +353,7 @@ export default class App extends React.Component {
     try{
       let client = new ApiClient();
       let response = await client.findDataByTracking(tracking);
+      console.log(response);
 
       for (let key of Object.keys(response)) {
         if(newProductDetails.hasOwnProperty(key) && !newProductDetails[key].value){
@@ -460,9 +483,18 @@ export default class App extends React.Component {
     });
   };
 
-  handleStartTakingPhoto = () => {
-    this.setState({
-        viewMode: ViewMode.TakePhoto,
+  handleStartTakingPhoto = async () => {
+    // this.setState({
+    //     viewMode: ViewMode.TakePhoto,
+    // });
+    if(Platform.OS!=='android'){
+      await Permissions.askAsync(Permissions.CAMERA);
+      await Permissions.askAsync(Permissions.CAMERA_ROLL);
+    }
+
+    let newphoto = await ImagePicker.launchCameraAsync({
+        allowsEditing:false,
+        quality:1
     });
   };
 
@@ -493,6 +525,19 @@ export default class App extends React.Component {
 
   handleSubmit = async () => {
     const {productDetails, returnDetails} = this.state;
+
+    //序列号验证
+    // if(!returnDetails.seq_no.value || returnDetails.seq_no.value.length>11){
+    //     Alert.alert(
+    //         'Submit',
+    //         'Please provide the correct Seq No',
+    //         [
+    //             {text: 'OK'},
+    //         ],
+    //     );
+    //     return;
+    // }
+    //快递单号验证
     let returnReason = returnDetails.return_reason.value;
     let skipCheckReason = ['Label lost', "Customer's own"];
     if(!productDetails.delivery_tracking_no.value
@@ -514,10 +559,13 @@ export default class App extends React.Component {
 
     let requestData = {};
     let keys = Object.keys(this.state.productDetails);
+    console.log(keys);
     keys.map(x => requestData[x] = this.state.productDetails[x].value);
+    console.log(requestData);
 
     keys = Object.keys(this.state.returnDetails);
     keys.map(x => requestData[x] = this.state.returnDetails[x].value);
+    console.log(requestData);
 
     //process type
     if(returnDetails.process_type.value === ProcessType.ASN){
@@ -537,6 +585,7 @@ export default class App extends React.Component {
 
     let client = new ApiClient();
     let responseData = await client.saveReturn(requestData);
+    console.log('保存返回数据',responseData);
     if(!!responseData && !!responseData.nextSeqNo){
       this.updateNextSeqNo(responseData.nextSeqNo)
     }
@@ -728,8 +777,43 @@ export default class App extends React.Component {
       });
   };
 
+  //手动填写序列号
+  handleSeqNum = async () =>{
+    let seqNum = 'M190314024';//this.state.next_seq_no;
+    let client = new ApiClient();
+    let responseData = await client.findDataBySeqNo(seqNum);
+    console.log(responseData);
+
+    if(!responseData.data){
+      console.log(responseData.data);
+        // for (let key of Object.keys(response)) {
+        //     if(newProductDetails.hasOwnProperty(key) && !newProductDetails[key].value){
+        //         newProductDetails[key].value = response[key];
+        //     } else if(newReturnDetails.hasOwnProperty(key) && !newReturnDetails[key].value) {
+        //         newReturnDetails[key].value = response[key];
+        //     }
+        // }
+    }else{
+        // Alert.alert(
+        //     'Search end',
+        //     'No information about the SeqNo is available.',
+        //     [{text: 'OK'}],
+        // );
+    }
+  };
+
   //序列号扫码后回调填写
-  handleSeqNum = (scanData) =>{
+  handleScanSeqNum = async (scanData) =>{
+      console.log(scanData.data);
+      //返回扫描结果进入loading界面
+      this.setState({
+          viewMode: ViewMode.Loading
+      });
+      //根据扫描得到条形码后调用请求
+      let client = new ApiClient();
+      let responseData = await client.findDataBySeqNo(scanData.data);
+      console.log(responseData);
+
       //更新填写条形码
       this.updateNextSeqNo(scanData.data);
       this.setState({
@@ -737,11 +821,33 @@ export default class App extends React.Component {
       });
   };
 
-  //测试相册功能
-  pickers = () =>{
-    //console.log(Permissions.askAsync(Permissions.CAMER)==='granted');
-    //console.log(Permissions.askAsync(Permissions.CAMERA_ROLL)==='granted');
-    //Permissions.askAsync(Permissions.CAMERA_ROLL);
+  //相册选择功能
+  pickers = async () =>{
+    console.log(Platform);
+    console.log(Platform.OS);
+    if(Platform.OS!=='android'){
+        await Permissions.askAsync(Permissions.CAMERA);
+    };
+    let newphoto = await ImagePicker.launchImageLibraryAsync({
+        allowsEditing:false,
+        quality:1
+    });
+    console.log(newphoto);
+  };
+
+  handleSelectPhoto = () =>{
+    this.setState({
+        viewMode: ViewMode.PhotoSelect
+    })
+  };
+
+  renderPhotoSelectView = () =>{
+      return (
+          <View style={{marginTop:100}}>
+              <Button title='New Album' onPress={this.handleStartTakingPhoto}/>
+              <Button title='Select from the Album' style={{marginTop:20}} onPress={this.pickers}/>
+          </View>
+      )
   };
 
   renderDetailsView = () => {
@@ -793,31 +899,42 @@ export default class App extends React.Component {
           <Card title='Return Details'>
             <FormLabel>{next_seq_no.label}</FormLabel>
             <View style={{flex:1, flexDirection:'row', justifyContent:'center', alignItems:'center'}} >
-                <TextInput style={[styles.textInput, {flex: 1}]}
-                          value={next_seq_no.value}
-                          editable = {false}
-               />
+                <TextInput
+                    style={[styles.textInput, {flex: 1}]}
+                    value ={next_seq_no.value}
+                    editable = {true}
+                    onChangeText = {(text) => this.setState({next_seq_no: text})}
+                    onBlur={(text) => this.handleSeqNum()}
+                    ref='1'
+                    onSubmitEditing={async () => {
+                        this.focusNextField('2');
+                      }}
+                />
                 <Icon
                     name={'barcode'}
                     type='font-awesome'
                     onPress={() => this.createSeq()}
                 />
             </View>
-              <FormLabel>{productDetails.barcode.label}</FormLabel>
+
+            <FormLabel>{productDetails.barcode.label}</FormLabel>
               <View style={{flex:1, flexDirection:'row', justifyContent:'center', alignItems:'center'}}>
                   <TextInput style={[styles.textInput, {flex: 1}]}
-                             value={productDetails.barcode.value}
-                             autoCorrect={false}
-                             onChangeText={(text) => this.handleProductUpdate('barcode', text)}
-                             onSubmitEditing={async () => {
-                                 await this.findSkuByBarcode(this.state.productDetails.barcode.value);
-                                 this.focusNextField('2');
-                             }}
-                             ref='1'
-                             blurOnSubmit={false}
-                             onFocus={(event) => {
+                           value={productDetails.barcode.value}
+                           autoCorrect={false}
+                           onChangeText={(text) => this.handleProductUpdate('barcode', text)}
+                           onSubmitEditing={async () => {
+                              await this.findSkuByBarcode(this.state.productDetails.barcode.value);
+                              this.focusNextField('2');
+                              }}
+                           blurOnSubmit={false}
+                           onFocus={(event) => {
                                  this.scrollToInput(findNodeHandle(event.target))
-                             }}
+                              }}
+                           onSubmitEditing={async () => {
+                                 this.focusNextField('3');
+                              }}
+                           ref='2'
                   />
                   <Icon
                       name={'search'}
@@ -825,35 +942,37 @@ export default class App extends React.Component {
                       onPress={() => this.findSkuByBarcode(this.state.productDetails.barcode.value)}
                   />
               </View>
-              <FormLabel>{productDetails.sku.label}</FormLabel>
+
+            <FormLabel>{productDetails.sku.label}</FormLabel>
               <TextInput style={styles.textInput}
                          value={productDetails.sku.value}
                          autoCorrect={false}
                          onChangeText={(text) => this.handleProductUpdate('sku', text)}
                          blurOnSubmit={false}
-                         ref='5'
                          onSubmitEditing={() => {
-                             // this.focusNextField('30');
-                         }}
+                             this.focusNextField('4');
+                            }}
                          onFocus={(event) => {
                              this.scrollToInput(findNodeHandle(event.target))
-                         }}
+                            }}
+                         ref='3'
               />
-              <FormLabel>{productDetails.delivery_tracking_no.label}</FormLabel>
+
+            <FormLabel>{productDetails.delivery_tracking_no.label}</FormLabel>
               <View style={{flex:1, flexDirection:'row', justifyContent:'center', alignItems:'center'}}>
                   <TextInput style={[styles.textInput, {flex: 1}]}
                              value={productDetails.delivery_tracking_no.value}
                              autoCorrect={false}
                              onChangeText={(text) => this.handleProductUpdate('delivery_tracking_no', text)}
                              onSubmitEditing={async () => {
-                                 await this.loadDetails(productDetails.delivery_tracking_no.value);
-                                 this.focusNextField('3');
-                             }}
-                             ref='2'
+                                  await this.loadDetails(productDetails.delivery_tracking_no.value);
+                                  this.focusNextField('5');
+                                }}
                              blurOnSubmit={false}
                              onFocus={(event) => {
-                                 this.scrollToInput(findNodeHandle(event.target))
-                             }}
+                                  this.scrollToInput(findNodeHandle(event.target))
+                                }}
+                             ref='4'
                   />
                   <Icon
                       name={'search'}
@@ -869,9 +988,9 @@ export default class App extends React.Component {
                              onChangeText={(text) => this.handleReturnUpdate('return_tracking_no', text)}
                              onSubmitEditing={async () => {
                                  await this.loadDetails(returnDetails.return_tracking_no.value);
-                                 this.focusNextField('4');
+                                 this.focusNextField('6');
                              }}
-                             ref='3'
+                             ref='5'
                              blurOnSubmit={false}
                              onFocus={(event) => {
                                  this.scrollToInput(findNodeHandle(event.target))
@@ -888,14 +1007,15 @@ export default class App extends React.Component {
                          value={returnDetails.note.value}
                          autoCorrect={false}
                          onChangeText={(text) => this.handleReturnUpdate('note', text)}
-                         ref='4'
+                         ref='6'
                          returnKeyType='next'
                          blurOnSubmit={false}
-                         onSubmitEditing={() => this.focusNextField('5')}
+                         //onSubmitEditing={() => this.focusNextField('7')}
                          onFocus={(event) => {
                              this.scrollToInput(findNodeHandle(event.target))
                          }}
               />
+
             <FormLabel><Text>{returnDetails.return_reason.label}</Text></FormLabel>
             <View style={styles.pickerSelectView}>
               <RNPickerSelect
@@ -917,6 +1037,7 @@ export default class App extends React.Component {
                 style={{viewContainer: styles.pickerSelect}}
               />
             </View>
+
               <FormLabel>{returnDetails.process_type.label}</FormLabel>
               <View style={styles.pickerSelectView}>
                   <RNPickerSelect
@@ -931,7 +1052,7 @@ export default class App extends React.Component {
                       value={this.state.returnDetails.process_type.value}
                       onValueChange={(value) => {
                           this.handleReturnUpdate('process_type', value);
-                          this.focusNextField('30');
+                          //this.focusNextField('30');
                       }}
                       ref={(el) => {
                           this.inputRefs.picker = el;
@@ -999,9 +1120,6 @@ export default class App extends React.Component {
                 style={{viewContainer: styles.pickerSelect}}
               />
             </View>
-
-
-
             <FormLabel>{returnDetails.user.label}</FormLabel>
             <TextInput style={styles.textInput}
                        value={returnDetails.user.value}
@@ -1077,7 +1195,10 @@ export default class App extends React.Component {
                        {/*onChangeText={(text) => this.handleProductUpdate('post_est', text)}*/}
                        {/*ref='35'*/}
             {/*/>*/}
-
+            <View style={{marginTop:10}}>
+              <Button title='UpLoadImage' style={{justifyContent: 'center',alignItems: 'center',backgroundColor:'red'}}
+                      onPress={this.handleSelectPhoto}></Button>
+            </View>
           </Card>
           {/*<Card title='Images'>*/}
             {/*<Button title='Select' onPress={this.pickImage}></Button>*/}
@@ -1190,6 +1311,8 @@ export default class App extends React.Component {
       return this.renderEnterBarcodeView();
     } else if(viewMode === ViewMode.TakePhoto){
         return this.renderTakePhotoView();
+    }else if(viewMode === ViewMode.PhotoSelect){
+        return this.renderPhotoSelectView();
     }else{
       return this.renderHomeView();
     }

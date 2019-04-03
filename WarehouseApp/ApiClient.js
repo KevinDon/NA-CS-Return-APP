@@ -3,10 +3,8 @@ import {apiServer, imageServer, smApiServer} from './app.json';
 export default class ApiClient{
   findDataByTracking = async tracking => {
     let url = apiServer + `/csreturn/findDataByTracking?tracking=${tracking}`;
-    console.log(apiServer);
-    console.log(url);
     let response = await fetch(url);
-    // console.log('response转json',await response.json());
+    console.log('response转json',await response.json());
     return await response.json();
   };
 
@@ -69,7 +67,6 @@ export default class ApiClient{
       account: account,
       password: password
     };
-
     let url = smApiServer + '/csreturn/login';
     let response = await fetch(url, {
       method: 'POST',
@@ -87,5 +84,22 @@ export default class ApiClient{
     // });
     //
     // return await response.json();
+  }
+
+  //查找序列号
+  findDataBySeqNo = async (SeqNo) =>{
+      let requestData = {
+          seq_no:SeqNo
+      };
+      let url = smApiServer + '/csreturn/findDataBySeqNo';
+      let response = await fetch(url, {
+          method: 'POST',
+          headers: {
+              Accept: 'application/json',
+              'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(requestData)
+      });
+      return await response.json();
   }
 }
