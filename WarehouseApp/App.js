@@ -1,5 +1,5 @@
 import React from 'react';
-import {Platform, StyleSheet, Text, View, Image, TextInput, ActivityIndicator, ScrollView, KeyboardAvoidingView, Alert, findNodeHandle} from 'react-native';
+import {Platform, StyleSheet, Text, View, Image, TextInput, ActivityIndicator, ScrollView, KeyboardAvoidingView, Alert, findNodeHandle,TouchableHighlight} from 'react-native';
 import {Header, Card, Button, ButtonGroup, Icon, FormLabel } from 'react-native-elements';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view'
 import BarcodeScanner from "./components/BarcodeScanner";
@@ -43,6 +43,8 @@ export default class App extends React.Component {
     showStatus: false,
     submitStatus: false,
     submitMsg: '',
+    waittingupload:false,
+    uploadimg:'',
 
     errorStatus: false,
     errorMsg: '',
@@ -57,19 +59,19 @@ export default class App extends React.Component {
 
 
     productDetails: {
-      barcode: {
+      f_barcode: {
         label: "Barcode",
         value: ''
       },
-      sku: {
+      f_sku: {
         label: "SKU",
         value: ''
       },
-      job_no: {
+      f_job_no: {
         label: "Job No",
         value: ''
       },
-      unit_cost: {
+      f_unit_cost: {
         label: "Unit Cost",
         value: 0
       },
@@ -77,48 +79,48 @@ export default class App extends React.Component {
       //   label: "Delivery Courier",
       //   value: ''
       // },
-      delivery_tracking_no: {
+      f_delivery_tracking_no: {
         label: "Delivery Tracking No",
         value: ''
       },
-      post_est: {
+      f_post_est: {
         label: "Post Est",
         value: 0
       },
-      order_no: {
+      f_order_no: {
         label: "OMS Order No",
         value: ''
       },
-      customer_order_no: {
+      f_customer_order_no: {
         label: "Customer Order No",
         value: ''
       },
-      order_user_nick: {
+      f_receiver: {
         label: "User Id",
         value: ''
       },
     },
     returnDetails: {
-        seq_no: {
+      f_seq_no: {
         value: ''
       },
       user: {
         label: 'Receiver',
         value: ''
       },
-      ticket_no: {
+      f_ticket_no: {
         label: 'Ticket No',
         value: ''
       },
-      return_reason: {
+      f_return_reason: {
         label: 'Return Reason',
         value: ''
       },
-      return_courier_name: {
+      f_return_courier_name: {
         label: 'Return Courier',
         value: ''
       },
-      return_tracking_no: {
+      f_return_tracking_no: {
         label: 'Return Tracking No',
         value: ''
       },
@@ -126,25 +128,33 @@ export default class App extends React.Component {
         label: 'Process',
         value: ''
       },
-      process_type: {
+      f_process: {
         label: 'Process Type',
         value: ''
       },
-      process_asn: {
+      f_process_asn: {
         label: 'ASN',
         value: ''
       },
-      process_secondhand: {
+      f_process_secondhand: {
         label: 'Secondhand',
         value: ''
       },
-      result: {
+      f_result: {
         label: 'Result',
         value: ''
       },
-      note: {
+      f_note: {
         label: 'Note',
         value: ''
+      },
+      f_create_username:{
+          label: 'Create Username',
+          value: ''
+      },
+      f_create_userid:{
+          label: 'Create UserId',
+          value: ''
       }
     }
   };
@@ -154,7 +164,7 @@ export default class App extends React.Component {
     // this.handleReturnUpdate('process_secondhand', this.getDefaultProcessSecondHandValue());
     // this.setProcessSecondHandWithDefaultValue();
     //this.getNextSeqNo();
-      //console.log(this.state);
+    //console.log(this.state);
   }
 
   updateNextSeqNo = seqNo => {
@@ -166,7 +176,6 @@ export default class App extends React.Component {
   };
 
   getNextSeqNo = async () => {
-    console.log(1);
     let client = new ApiClient();
     let data = await client.getNextSeqNo();
     if(!!data && !!data.nextSeqNo){
@@ -196,13 +205,11 @@ export default class App extends React.Component {
     let responseData = await client.login(account, password);
 
     if(responseData.msg==="success"){
-      console.log(1);
       this.setState({
           viewMode: ViewMode.Details
       });
       this.handleReturnUpdate('user', account);
     }else{
-      console.log(2);
       this.setState({
           viewMode: ViewMode.Login
       });
@@ -334,7 +341,6 @@ export default class App extends React.Component {
   };
 
   loadDetails = async(tracking) => {
-    console.log(tracking);
     if(!tracking || tracking.trim() === '') return;
 
     this.setState({
@@ -353,7 +359,6 @@ export default class App extends React.Component {
     try{
       let client = new ApiClient();
       let response = await client.findDataByTracking(tracking);
-      console.log(response);
 
       for (let key of Object.keys(response)) {
         if(newProductDetails.hasOwnProperty(key) && !newProductDetails[key].value){
@@ -484,24 +489,28 @@ export default class App extends React.Component {
   };
 
   handleStartTakingPhoto = async () => {
-    // this.setState({
-    //     viewMode: ViewMode.TakePhoto,
-    // });
-    if(Platform.OS!=='android'){
+    //if(Platform.OS!=='android'){
       await Permissions.askAsync(Permissions.CAMERA);
       await Permissions.askAsync(Permissions.CAMERA_ROLL);
-    }
-
+    //}
     let newphoto = await ImagePicker.launchCameraAsync({
         allowsEditing:false,
         quality:1
     });
+    console.log(newphoto);
+    console.log(newphoto.uri);
+    if(newphoto.cancelled!==true){
+        this.setState({
+            waittingupload:true,
+            uploadimg:newphoto.uri
+        })
+    }
+    console.log(this.state);
   };
 
   //照相回调函数
   handleTakingPhoto = async (scope) =>{
     let photo = await scope.camera.takePictureAsync();
-    console.log(photo);
     let uri = photo.uri;
     scope.returnImage();
   };
@@ -517,7 +526,6 @@ export default class App extends React.Component {
   handleReturnUpdate = (key, value) => {
     let newData = JSON.parse(JSON.stringify(this.state.returnDetails));
     newData[key].value = value;
-
     this.setState({
       returnDetails: newData
     });
@@ -527,21 +535,12 @@ export default class App extends React.Component {
     const {productDetails, returnDetails} = this.state;
 
     //序列号验证
-    // if(!returnDetails.seq_no.value || returnDetails.seq_no.value.length>11){
-    //     Alert.alert(
-    //         'Submit',
-    //         'Please provide the correct Seq No',
-    //         [
-    //             {text: 'OK'},
-    //         ],
-    //     );
-    //     return;
-    // }
+
     //快递单号验证
-    let returnReason = returnDetails.return_reason.value;
+    let returnReason = returnDetails.f_return_reason.value;
     let skipCheckReason = ['Label lost', "Customer's own"];
-    if(!productDetails.delivery_tracking_no.value
-      && !returnDetails.return_tracking_no.value
+    if(!productDetails.f_delivery_tracking_no.value
+      && !returnDetails.f_return_tracking_no.value
       && skipCheckReason.indexOf(returnReason) < 0) {
       Alert.alert(
         'Submit',
@@ -559,18 +558,15 @@ export default class App extends React.Component {
 
     let requestData = {};
     let keys = Object.keys(this.state.productDetails);
-    console.log(keys);
     keys.map(x => requestData[x] = this.state.productDetails[x].value);
-    console.log(requestData);
 
     keys = Object.keys(this.state.returnDetails);
     keys.map(x => requestData[x] = this.state.returnDetails[x].value);
-    console.log(requestData);
 
     //process type
-    if(returnDetails.process_type.value === ProcessType.ASN){
+    if(returnDetails.f_process.value === ProcessType.ASN){
       requestData['process_secondhand'] = '';
-    } else if(returnDetails.process_type.value === ProcessType.SecondHand){
+    } else if(returnDetails.f_process.value === ProcessType.SecondHand){
       requestData['process_asn'] = '';
     } else {
       requestData['process_asn'] = '';
@@ -585,7 +581,8 @@ export default class App extends React.Component {
 
     let client = new ApiClient();
     let responseData = await client.saveReturn(requestData);
-    console.log('保存返回数据',responseData);
+    console.log(responseData);
+
     if(!!responseData && !!responseData.nextSeqNo){
       this.updateNextSeqNo(responseData.nextSeqNo)
     }
@@ -652,7 +649,7 @@ export default class App extends React.Component {
 
     let newReturnDetails = JSON.parse(JSON.stringify(this.state.returnDetails));
     Object.keys(newReturnDetails).map(key => {
-      if(key === 'user' || key === 'return_courier_name') return;
+      if(key === 'user' || key === 'f_return_courier_name') return;
       if(typeof newReturnDetails[key].value === 'number') newReturnDetails[key].value = 0;
       else newReturnDetails[key].value = '';
     });
@@ -779,32 +776,53 @@ export default class App extends React.Component {
 
   //手动填写序列号
   handleSeqNum = async () =>{
-    let seqNum = 'M190314024';//this.state.next_seq_no;
-    let client = new ApiClient();
-    let responseData = await client.findDataBySeqNo(seqNum);
-    console.log(responseData);
+      let seqNum = this.state.next_seq_no.value;
+      this.clearData();
+      this.setState({
+          viewMode: ViewMode.Loading
+      });
 
-    if(!responseData.data){
-      console.log(responseData.data);
-        // for (let key of Object.keys(response)) {
-        //     if(newProductDetails.hasOwnProperty(key) && !newProductDetails[key].value){
-        //         newProductDetails[key].value = response[key];
-        //     } else if(newReturnDetails.hasOwnProperty(key) && !newReturnDetails[key].value) {
-        //         newReturnDetails[key].value = response[key];
-        //     }
-        // }
-    }else{
-        // Alert.alert(
-        //     'Search end',
-        //     'No information about the SeqNo is available.',
-        //     [{text: 'OK'}],
-        // );
-    }
+      let client = new ApiClient();
+      let responseData = await client.findDataBySeqNo(seqNum);
+      console.log(responseData);
+
+      let newProductDetails = JSON.parse(JSON.stringify(this.state.productDetails));
+      let newReturnDetails = JSON.parse(JSON.stringify(this.state.returnDetails));
+      let newNextSeqNo = JSON.parse(JSON.stringify(this.state.next_seq_no));
+
+      let callbackDatas = responseData.data[0];
+
+      // callbackDatas.f_barcode='测试barcode';
+      // callbackDatas.f_delivery_tracking_no='测试快递单号';
+      // callbackDatas.f_return_tracking_no='测试重发快递单号';
+      // callbackDatas.f_note='测试note';
+      // callbackDatas.f_return_reason='Requested by New Aim';
+      // callbackDatas.f_process='ASN';
+      // callbackDatas.f_process_asn='aa001';
+      // callbackDatas.f_return_courier_name="Customer's Own";
+
+      for (let key of Object.keys(callbackDatas)) {
+          if(newProductDetails.hasOwnProperty(key) && !newProductDetails[key].value){
+              newProductDetails[key].value = callbackDatas[key];
+          } else if(newReturnDetails.hasOwnProperty(key) && !newReturnDetails[key].value) {
+              newReturnDetails[key].value = callbackDatas[key];
+          }
+      }
+
+      this.clearData();
+      this.setState({
+          productDetails: newProductDetails,
+          returnDetails: newReturnDetails,
+          newNextSeqNo:newNextSeqNo
+      });
+
+      this.setState({
+          viewMode: ViewMode.Details
+      });
   };
 
   //序列号扫码后回调填写
   handleScanSeqNum = async (scanData) =>{
-      console.log(scanData.data);
       //返回扫描结果进入loading界面
       this.setState({
           viewMode: ViewMode.Loading
@@ -812,27 +830,58 @@ export default class App extends React.Component {
       //根据扫描得到条形码后调用请求
       let client = new ApiClient();
       let responseData = await client.findDataBySeqNo(scanData.data);
-      console.log(responseData);
+      //console.log(responseData);
+
+      let newProductDetails = JSON.parse(JSON.stringify(this.state.productDetails));
+      let newReturnDetails = JSON.parse(JSON.stringify(this.state.returnDetails));
+      //let newNextSeqNo = JSON.parse(JSON.stringify(this.state.next_seq_no));
+
+      let callbackDatas = responseData.data[0];
+      for (let key of Object.keys(callbackDatas)) {
+          if(newProductDetails.hasOwnProperty(key) && !newProductDetails[key].value){
+              newProductDetails[key].value = callbackDatas[key];
+          } else if(newReturnDetails.hasOwnProperty(key) && !newReturnDetails[key].value) {
+              newReturnDetails[key].value = callbackDatas[key];
+          }
+      }
+
+      this.clearData();
+      this.setState({
+          productDetails: newProductDetails,
+          returnDetails: newReturnDetails,
+          viewMode: ViewMode.Details
+      });
 
       //更新填写条形码
       this.updateNextSeqNo(scanData.data);
-      this.setState({
-          viewMode: ViewMode.Details
-      });
   };
 
   //相册选择功能
-  pickers = async () =>{
-    console.log(Platform);
-    console.log(Platform.OS);
-    if(Platform.OS!=='android'){
-        await Permissions.askAsync(Permissions.CAMERA);
-    };
-    let newphoto = await ImagePicker.launchImageLibraryAsync({
+  pickPhotos = async () =>{
+      await Permissions.askAsync(Permissions.CAMERA);
+      let newphoto = await ImagePicker.launchImageLibraryAsync({
         allowsEditing:false,
         quality:1
-    });
-    console.log(newphoto);
+      });
+    if(newphoto.cancelled!==true){
+        this.setState({
+              waittingupload:true,
+              uploadimg:newphoto.uri
+        })
+    }
+  };
+
+  //图片上传功能
+  handleupload = async () =>{
+      this.setState({
+          waittingupload:false,
+          uploadimg:'',
+      });
+      Alert.alert(
+          'Upload Successed',
+          'Upload Success',
+          [{text: 'OK'}]
+      )
   };
 
   handleSelectPhoto = () =>{
@@ -842,17 +891,67 @@ export default class App extends React.Component {
   };
 
   renderPhotoSelectView = () =>{
+      const { uploadimg } = this.state;
+
       return (
-          <View style={{marginTop:100}}>
-              <Button title='New Album' onPress={this.handleStartTakingPhoto}/>
-              <Button title='Select from the Album' style={{marginTop:20}} onPress={this.pickers}/>
+          <View style={{flex: 1, flexDirection: 'column', justifyContent: 'space-between'}}>
+            <View style={{marginTop:200}}>
+                {!this.state.waittingupload &&
+                  <View>
+                      <View style={{margin:10,flexDirection: 'row',justifyContent:'center'}}>
+                          {/*<Button title='New Album' onPress={this.handleStartTakingPhoto}/>*/}
+                          <TouchableHighlight
+                              onPress={this.handleStartTakingPhoto}
+                              style={{width:'80%',backgroundColor:'#466DC5',height: 50,borderRadius:5}}
+                          >
+                              <Text style={styles.buttontext}>New Album</Text>
+                          </TouchableHighlight>
+                      </View>
+                      <View style={{margin:10,flexDirection: 'row',justifyContent:'center'}}>
+                          {/*<Button title='Select from the Album' style={{marginTop:20}} onPress={this.pickers}/>*/}
+                          <TouchableHighlight
+                              onPress={this.pickPhotos}
+                              style={{width:'80%',backgroundColor:'#466DC5',height: 50,borderRadius:5}}
+                          >
+                              <Text style={styles.buttontext}>Select from the Album</Text>
+                          </TouchableHighlight>
+                      </View>
+                  </View>
+                }
+                {this.state.waittingupload &&
+                    <View style={{flexDirection: 'row',justifyContent:'center'}}>
+                        <Image source={{ uri: uploadimg }} style={{ width: 200, height: 200 }} />
+                    </View>
+                }
+                {this.state.waittingupload &&
+                <View style={{margin:10,flexDirection: 'row',justifyContent:'center'}}>
+                    {/*<Button title='Select from the Album' style={{marginTop:20}} onPress={this.pickers}/>*/}
+                    <TouchableHighlight
+                        onPress={this.handleupload}
+                        style={{width:'40%',backgroundColor:'#466DC5',height: 50,borderRadius:5}}
+                    >
+                        <Text style={styles.buttontext}>Upload</Text>
+                    </TouchableHighlight>
+                </View>
+                }
+            </View>
+
+            <View style={{marginBottom:60,flexDirection: 'row',justifyContent:'center'}}>
+              {/*<Button title='Cancel' onPress={() =>{this.setState({viewMode: ViewMode.Details})}}/>*/}
+              <TouchableHighlight
+                  onPress={()=>{this.setState({viewMode:ViewMode.Details})}}
+                  style={{width:'80%',backgroundColor:'red',height: 50,borderRadius:5}}
+              >
+               <Text style={styles.buttontext}>Cancel</Text>
+              </TouchableHighlight>
+            </View>
           </View>
       )
   };
 
   renderDetailsView = () => {
     const {productDetails, returnDetails, submitMsg, images, next_seq_no} = this.state;
-    let processType = returnDetails.process_type.value;
+    let processType = returnDetails.f_process.value;
 
     let returnReasonItems = returnReasons.map((s, i) => {
       return {
@@ -903,7 +1002,7 @@ export default class App extends React.Component {
                     style={[styles.textInput, {flex: 1}]}
                     value ={next_seq_no.value}
                     editable = {true}
-                    onChangeText = {(text) => this.setState({next_seq_no: text})}
+                    onChangeText = {(text) => this.setState({next_seq_no: {label: 'Seq No.', value: text},})}
                     onBlur={(text) => this.handleSeqNum()}
                     ref='1'
                     onSubmitEditing={async () => {
@@ -916,15 +1015,14 @@ export default class App extends React.Component {
                     onPress={() => this.createSeq()}
                 />
             </View>
-
-            <FormLabel>{productDetails.barcode.label}</FormLabel>
+            <FormLabel>{productDetails.f_barcode.label}</FormLabel>
               <View style={{flex:1, flexDirection:'row', justifyContent:'center', alignItems:'center'}}>
                   <TextInput style={[styles.textInput, {flex: 1}]}
-                           value={productDetails.barcode.value}
+                           value={productDetails.f_barcode.value}
                            autoCorrect={false}
-                           onChangeText={(text) => this.handleProductUpdate('barcode', text)}
+                           onChangeText={(text) => this.handleProductUpdate('f_barcode', text)}
                            onSubmitEditing={async () => {
-                              await this.findSkuByBarcode(this.state.productDetails.barcode.value);
+                              await this.findSkuByBarcode(this.state.productDetails.f_barcode.value);
                               this.focusNextField('2');
                               }}
                            blurOnSubmit={false}
@@ -942,12 +1040,11 @@ export default class App extends React.Component {
                       onPress={() => this.findSkuByBarcode(this.state.productDetails.barcode.value)}
                   />
               </View>
-
-            <FormLabel>{productDetails.sku.label}</FormLabel>
+            <FormLabel>{productDetails.f_sku.label}</FormLabel>
               <TextInput style={styles.textInput}
-                         value={productDetails.sku.value}
+                         value={productDetails.f_sku.value}
                          autoCorrect={false}
-                         onChangeText={(text) => this.handleProductUpdate('sku', text)}
+                         onChangeText={(text) => this.handleProductUpdate('f_sku', text)}
                          blurOnSubmit={false}
                          onSubmitEditing={() => {
                              this.focusNextField('4');
@@ -957,15 +1054,14 @@ export default class App extends React.Component {
                             }}
                          ref='3'
               />
-
-            <FormLabel>{productDetails.delivery_tracking_no.label}</FormLabel>
+            <FormLabel>{productDetails.f_delivery_tracking_no.label}</FormLabel>
               <View style={{flex:1, flexDirection:'row', justifyContent:'center', alignItems:'center'}}>
                   <TextInput style={[styles.textInput, {flex: 1}]}
-                             value={productDetails.delivery_tracking_no.value}
+                             value={productDetails.f_delivery_tracking_no.value}
                              autoCorrect={false}
-                             onChangeText={(text) => this.handleProductUpdate('delivery_tracking_no', text)}
+                             onChangeText={(text) => this.handleProductUpdate('f_delivery_tracking_no', text)}
                              onSubmitEditing={async () => {
-                                  await this.loadDetails(productDetails.delivery_tracking_no.value);
+                                  await this.loadDetails(productDetails.f_delivery_tracking_no.value);
                                   this.focusNextField('5');
                                 }}
                              blurOnSubmit={false}
@@ -977,36 +1073,37 @@ export default class App extends React.Component {
                   <Icon
                       name={'search'}
                       type='font-awesome'
-                      onPress={() => this.loadDetails(productDetails.delivery_tracking_no.value)}
+                      onPress={() => this.loadDetails(productDetails.f_delivery_tracking_no.value)}
                   />
               </View>
-              <FormLabel>{returnDetails.return_tracking_no.label}</FormLabel>
-              <View style={{flex:1, flexDirection:'row', justifyContent:'center', alignItems:'center'}}>
-                  <TextInput style={[styles.textInput, {flex: 1}]}
-                             value={returnDetails.return_tracking_no.value}
-                             autoCorrect={false}
-                             onChangeText={(text) => this.handleReturnUpdate('return_tracking_no', text)}
-                             onSubmitEditing={async () => {
-                                 await this.loadDetails(returnDetails.return_tracking_no.value);
-                                 this.focusNextField('6');
+            <FormLabel>{returnDetails.f_return_tracking_no.label}</FormLabel>
+            <View style={{flex:1, flexDirection:'row', justifyContent:'center', alignItems:'center'}}>
+                <TextInput style={[styles.textInput, {flex: 1}]}
+                            value={returnDetails.f_return_tracking_no.value}
+                            autoCorrect={false}
+                            onChangeText={(text) => this.handleReturnUpdate('f_return_tracking_no', text)}
+                            onSubmitEditing={async () => {
+                                await this.loadDetails(returnDetails.f_return_tracking_no.value);
+                                this.focusNextField('6');
                              }}
-                             ref='5'
-                             blurOnSubmit={false}
-                             onFocus={(event) => {
+                          ref='5'
+                          blurOnSubmit={false}
+                          onFocus={(event) => {
                                  this.scrollToInput(findNodeHandle(event.target))
                              }}
                   />
                   <Icon
                       name={'search'}
                       type='font-awesome'
-                      onPress={() => this.loadDetails(returnDetails.return_tracking_no.value)}
+                      onPress={() => this.loadDetails(returnDetails.f_return_tracking_no.value)}
                   />
               </View>
-              <FormLabel>{returnDetails.note.label}</FormLabel>
+
+            <FormLabel>{returnDetails.f_note.label}</FormLabel>
               <TextInput style={styles.textInput}
-                         value={returnDetails.note.value}
+                         value={returnDetails.f_note.value}
                          autoCorrect={false}
-                         onChangeText={(text) => this.handleReturnUpdate('note', text)}
+                         onChangeText={(text) => this.handleReturnUpdate('f_note', text)}
                          ref='6'
                          returnKeyType='next'
                          blurOnSubmit={false}
@@ -1016,29 +1113,29 @@ export default class App extends React.Component {
                          }}
               />
 
-            <FormLabel><Text>{returnDetails.return_reason.label}</Text></FormLabel>
+            <FormLabel><Text>{returnDetails.f_return_reason.label}</Text></FormLabel>
             <View style={styles.pickerSelectView}>
-              <RNPickerSelect
-                hideIcon
-                useNativeAndroidPickerStyle={false}
-                placeholder={{
-                  label: 'Select a return reason...',
-                  value: null,
-                  color: '#9EA0A4'
-                }}
-                items={returnReasonItems}
-                value={this.state.returnDetails.return_reason.value}
-                onValueChange={(value) => {
-                  this.handleReturnUpdate('return_reason', value);
-                }}
-                ref={(el) => {
-                  this.inputRefs.picker = el;
-                }}
-                style={{viewContainer: styles.pickerSelect}}
+                <RNPickerSelect
+                    hideIcon
+                    useNativeAndroidPickerStyle={false}
+                    placeholder={{
+                        label: 'Select a return reason...',
+                        value: null,
+                        color: '#9EA0A4'
+                      }}
+                    items={returnReasonItems}
+                    value={this.state.returnDetails.f_return_reason.value}
+                    onValueChange={(value) => {
+                        this.handleReturnUpdate('f_return_reason', value);
+                      }}
+                    ref={(el) => {
+                        this.inputRefs.picker = el;
+                      }}
+                    style={{viewContainer: styles.pickerSelect}}
               />
             </View>
 
-              <FormLabel>{returnDetails.process_type.label}</FormLabel>
+            <FormLabel>{returnDetails.f_process.label}</FormLabel>
               <View style={styles.pickerSelectView}>
                   <RNPickerSelect
                       hideIcon
@@ -1049,9 +1146,9 @@ export default class App extends React.Component {
                           color: '#9EA0A4',
                       }}
                       items={processTypeItems}
-                      value={this.state.returnDetails.process_type.value}
+                      value={this.state.returnDetails.f_process.value}
                       onValueChange={(value) => {
-                          this.handleReturnUpdate('process_type', value);
+                          this.handleReturnUpdate('f_process', value);
                           //this.focusNextField('30');
                       }}
                       ref={(el) => {
@@ -1072,9 +1169,9 @@ export default class App extends React.Component {
                               color: '#9EA0A4',
                           }}
                           items={asnItems}
-                          value={this.state.returnDetails.process_asn.value}
+                          value={this.state.returnDetails.f_process_asn.value}
                           onValueChange={(value) => {
-                              this.handleReturnUpdate('process_asn', value);
+                              this.handleReturnUpdate('f_process_asn', value);
                           }}
                           ref={(el) => {
                               this.inputRefs.picker = el;
@@ -1088,8 +1185,8 @@ export default class App extends React.Component {
                   <TextInput style={styles.textInput}
                              autoCorrect={false}
                       // autoFocus={true}
-                             value={this.state.returnDetails.process_secondhand.value}
-                             onChangeText={(text) => this.handleReturnUpdate('process_secondhand', text)}
+                             value={this.state.returnDetails.f_process_secondhand.value}
+                             onChangeText={(text) => this.handleReturnUpdate('f_process_secondhand', text)}
                              ref='22'
                              returnKeyType='next'
                              blurOnSubmit={false}
@@ -1099,7 +1196,8 @@ export default class App extends React.Component {
                              }}
                   />
               }
-            <FormLabel>{returnDetails.return_courier_name.label}</FormLabel>
+
+            <FormLabel>{returnDetails.f_return_courier_name.label}</FormLabel>
             <View style={styles.pickerSelectView}>
               <RNPickerSelect
                 hideIcon
@@ -1110,9 +1208,9 @@ export default class App extends React.Component {
                   color: '#9EA0A4',
                 }}
                 items={returnCourierItems}
-                value={this.state.returnDetails.return_courier_name.value}
+                value={this.state.returnDetails.f_return_courier_name.value}
                 onValueChange={(value) => {
-                  this.handleReturnUpdate('return_courier_name', value);
+                  this.handleReturnUpdate('f_return_courier_name', value);
                 }}
                 ref={(el) => {
                   this.inputRefs.picker = el;
@@ -1133,11 +1231,11 @@ export default class App extends React.Component {
                          this.scrollToInput(findNodeHandle(event.target))
                        }}
             />
-            <FormLabel>{returnDetails.ticket_no.label}</FormLabel>
+            <FormLabel>{returnDetails.f_ticket_no.label}</FormLabel>
             <TextInput style={styles.textInput}
-                       value={returnDetails.ticket_no.value}
+                       value={returnDetails.f_ticket_no.value}
                        autoCorrect={false}
-                       onChangeText={(text) => this.handleReturnUpdate('ticket_no', text)}
+                       onChangeText={(text) => this.handleReturnUpdate('f_ticket_no', text)}
                        ref='31'
                        returnKeyType='next'
                        blurOnSubmit={false}
@@ -1195,9 +1293,15 @@ export default class App extends React.Component {
                        {/*onChangeText={(text) => this.handleProductUpdate('post_est', text)}*/}
                        {/*ref='35'*/}
             {/*/>*/}
-            <View style={{marginTop:10}}>
-              <Button title='UpLoadImage' style={{justifyContent: 'center',alignItems: 'center',backgroundColor:'red'}}
-                      onPress={this.handleSelectPhoto}></Button>
+              <View style={{margin:10,flexDirection: 'row',justifyContent:'center'}}>
+              {/*<Button title='UpLoadImage' style={{justifyContent: 'center',alignItems: 'center',backgroundColor:'red'}}*/}
+              {/*onPress={this.handleSelectPhoto}></Button>*/}
+                    <TouchableHighlight
+                        onPress={()=>{this.handleSelectPhoto()}}
+                        style={{width:'80%',backgroundColor:'#466DC5',height: 50,borderRadius:5}}
+                    >
+                        <Text style={styles.buttontext}>Upload Image</Text>
+                    </TouchableHighlight>
             </View>
           </Card>
           {/*<Card title='Images'>*/}
@@ -1225,8 +1329,20 @@ export default class App extends React.Component {
             {/*</View>*/}
           {/*</Card>*/}
           <View style={styles.submitButtonView}>
-            <Button title='Clear Data' onPress={this.handleClearData}></Button>
-            <Button title='Submit Data' onPress={this.handleSubmit}></Button>
+            {/*<Button title='Clear Data' onPress={this.handleClearData}></Button>*/}
+            {/*<Button title='Submit Data' onPress={this.handleSubmit}></Button>*/}
+              <TouchableHighlight
+                  onPress={()=>{this.handleClearData()}}
+                  style={{width:'30%',backgroundColor:'red',height: 50,borderRadius:5,marginLeft:15}}
+              >
+                  <Text style={styles.buttontext}>Clear Data</Text>
+              </TouchableHighlight>
+              <TouchableHighlight
+                  onPress={()=>{this.handleSubmit()}}
+                  style={{width:'30%',backgroundColor:'#466DC5',height: 50,borderRadius:5,marginRight:15}}
+              >
+                  <Text style={styles.buttontext}>Submit Data</Text>
+              </TouchableHighlight>
           </View>
         </View>
       </KeyboardAwareScrollView>
@@ -1396,5 +1512,12 @@ const styles = StyleSheet.create({
   submitMsgView: {
     flex: 1,
     backgroundColor: 'green',
+  },
+
+  buttontext: {
+    color:'#fff',
+    textAlign:'center',
+    lineHeight:50,
+    fontSize: 16,
   }
 });

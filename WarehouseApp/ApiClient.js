@@ -10,6 +10,7 @@ export default class ApiClient{
 
   saveReturn = async requestData => {
     let url = apiServer + `/csreturn/saveReturn`;
+    console.log(url);
     let response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -88,6 +89,7 @@ export default class ApiClient{
 
   //查找序列号
   findDataBySeqNo = async (SeqNo) =>{
+      console.log(SeqNo);
       let requestData = {
           seq_no:SeqNo
       };

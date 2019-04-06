@@ -7,11 +7,7 @@ export default class AppUtil{
 
     static postSmgLogin(req: any, res: any, url: string, data: any) {
         let smgUrl = 'http://dev.test.com/api/index/login';
-        let $key = "newaimsalemessage123456";//只有请求方和接收方知道的密钥
-        let $data = data;
-        $data = ksort($data);
-        let $params = http_build_query($data);
-        $data["secret"]  = md5($params + $key);
+        let $data = this.encipherSMG(data);
         this.requestPostJson({
             url: smgUrl,
             data: $data,
@@ -61,6 +57,7 @@ export default class AppUtil{
                         return new Promise((resolve, reject) => {
                             result.push(!!body.data ? body.data : {});
                             let response = this.responseJSON('1', result, body.msg, true);
+
                             resolve(response);
                         }).then((data) => {
                             if(callback) callback.call(conf.scope, data);
@@ -72,6 +69,15 @@ export default class AppUtil{
         })
 
 
+    }
+
+    static encipherSMG(data){
+        let $data = data;
+        let $key = "newaimsalemessage123456";//只有请求方和接收方知道的密钥
+        $data = ksort($data);
+        let $params = http_build_query($data);
+        $data["secret"]  = md5($params + $key);
+        return $data;
     }
 }
 
