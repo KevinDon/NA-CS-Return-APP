@@ -201,14 +201,14 @@ export default class CSReturnController {
             // await this.addAuditLog(selData.id, requestData.f_seq_no, requestData.f_create_userid, actionType, JSON.stringify(req.body)).then(function(){
             // });
             let createDate = moment(new Date()).format('YYYY-MM-DD HH:mm:ss'); /*格式化当前时间时间*/
-            let historyCmd = `INSERT INTO dl_return_operation_history (f_returnid, f_seq_no, f_operation_history, f_create_userid, f_create_date)  VALUES('${selDataObj.id}', '${requestData.f_seq_no}', '${JSON.stringify($operationHistory)}', '${requestData.f_create_userid}', '${createDate}')`;
-
-            await me.saveReturnNote(selDataObj.id, requestData);
-            await DbServiceObj.executeSmQuery(historyCmd).then(function(){
-                DbServiceObj.updateSmQuery(cmd, values);
-                let response = AppUtil.responseJSON('1', [], 'Update successful.', true);
-                res.send(response);
-            });
+            if(Object.keys($operationHistory).length != 0){
+                let historyCmd = `INSERT INTO dl_return_operation_history (f_returnid, f_seq_no, f_operation_history, f_create_userid, f_create_date)  VALUES('${selDataObj.id}', '${requestData.f_seq_no}', '${JSON.stringify($operationHistory)}', '${requestData.f_create_userid}', '${createDate}')`;
+                await me.saveReturnNote(selDataObj.id, requestData);
+                await DbServiceObj.executeSmQuery(historyCmd)
+            }
+            DbServiceObj.updateSmQuery(cmd, values);
+            let response = AppUtil.responseJSON('1', [], 'Update successful.', true);
+            res.send(response);
         }else {
             //insert
             cmd = mysql.format(`INSERT INTO dl_return (${columns.join()})  VALUES(${placeholders.join(',')})`, values);
