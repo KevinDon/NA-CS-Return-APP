@@ -171,35 +171,41 @@ export default class CSReturnController {
         if(selData.length > 0) selDataObj = JSON.parse(JSON.stringify(selData[0]));
         for (let field of fields) {
             try{
-                if (!requestData[field] || requestData[field] == null || requestData[field] == undefined || requestData[field].length == 0){
+                if (requestData[field] == null || requestData[field] == undefined){
                     continue
                 }else if (!!requestData['images'] && requestData['images'].length > 0 && 'images' == field) {
                     images = requestData['images'];
+                    requestData['images'] = '';
                     continue;
                 }
-                if(!!selDataObj && !!selDataObj[field] && requestData[field] != selDataObj[field] && selData.length > 0){
-                    let newValue = requestData[field];
+                if(!!selDataObj && requestData[field] != selDataObj[field] && selData.length > 0 && field != 'images'){
+                    let newValue = !!requestData[field] ? requestData[field] : '';
+                    let oldValue = !!selDataObj[field] ? selDataObj[field] : '';
                     $operationHistory[field] = {};
-                    $operationHistory[field][newValue] = selDataObj[field];
+                    $operationHistory[field][newValue] = oldValue;
                 }
-                columns.push(field);
-                placeholders.push('?');
-                values.push(requestData[field]);
+                if(field != 'images'){
+                    columns.push(field);
+                    placeholders.push('?');
+                    values.push(requestData[field]);
+                }
             }
             catch(e){
                 console.log(e);
             }
         }
-
+        $operationHistory = await me.compareAttachmentHandle(requestData.f_seq_no,images, $operationHistory);
         if (!!selDataObj && selData.length > 0) {
+            let imageData = await me.uploadImageHandle(selDataObj.id, requestData.f_seq_no, images);
             cmd = `UPDATE dl_return SET ${columns.join('=?, ')} =? WHERE f_seq_no= "${requestData.f_seq_no}"`;
             // await this.addAuditLog(selData.id, requestData.f_seq_no, requestData.f_create_userid, actionType, JSON.stringify(req.body)).then(function(){
             // });
             let createDate = moment(new Date()).format('YYYY-MM-DD HH:mm:ss'); /*格式化当前时间时间*/
             let historyCmd = `INSERT INTO dl_return_operation_history (f_returnid, f_seq_no, f_operation_history, f_create_userid, f_create_date)  VALUES('${selDataObj.id}', '${requestData.f_seq_no}', '${JSON.stringify($operationHistory)}', '${requestData.f_create_userid}', '${createDate}')`;
+
+            await me.saveReturnNote(selDataObj.id, requestData);
             await DbServiceObj.executeSmQuery(historyCmd).then(function(){
                 DbServiceObj.updateSmQuery(cmd, values);
-                me.uploadImageHandle(selDataObj.id, requestData.f_seq_no, images);
                 let response = AppUtil.responseJSON('1', [], 'Update successful.', true);
                 res.send(response);
             });
@@ -207,11 +213,12 @@ export default class CSReturnController {
             //insert
             cmd = mysql.format(`INSERT INTO dl_return (${columns.join()})  VALUES(${placeholders.join(',')})`, values);
             let data = await DbServiceObj.executeSmQuery(cmd);
+            await me.saveReturnNote(data.insertId, requestData);
             actionType = ActionType.Add;
             if (data.length > 0) data = JSON.parse(JSON.stringify(data[0]));
             let imageResponse = this.uploadImageHandle(data.insertId, requestData.f_seq_no, images);
             let response = AppUtil.responseJSON('1', [], 'Save Successfully', true);
-            await this.addAuditLog(data.insertId, requestData.f_seq_no, requestData.f_create_userid, actionType, JSON.stringify(req.body));
+            //await this.addAuditLog(data.insertId, requestData.f_seq_no, requestData.f_create_userid, actionType, JSON.stringify(req.body));
             res.send(response);
         }
     }
@@ -399,21 +406,49 @@ export default class CSReturnController {
         res.send(response);
     }
 
-    async uploadImageHandle(returnId, seqNo, images) {
+    async saveReturnNote(returnId, requestData){
         let createDate = moment(new Date()).format('YYYY-MM-DD HH:mm:ss'); /*格式化当前时间时间*/
+        let remarkCmd = `INSERT INTO dl_return_remark (f_returnid, f_seq_no, f_remark, f_create_userid, f_create_date)  VALUES('${returnId}', '${requestData.f_seq_no}', '${requestData.f_note}', '${requestData.f_create_userid}', '${createDate}')`;
+        DbServiceObj.executeSmQuery(remarkCmd)
+    }
 
-        if (!!images && images.length > 0) {
-            for (let index = 0; index < images.length; index++) {
-                let attachmentCmd = '';
-                try {
-                    let image = images[index];
-                    attachmentCmd = `insert into dl_return_attachment (f_returnid, f_seq_no, f_type, f_file_url, f_file_size, f_create_date, f_file_name) values('${returnId}','${seqNo}', '${image.type}',  '${image.url}', '${image.size}', '${createDate}', '${image.filename}')`;
-                    return await DbServiceObj.executeSmQuery(attachmentCmd);
-                } catch (e) {
-                    console.log(e);
+    async uploadImageHandle(returnId, seqNo, images) {
+        if(!!images && images.length > 0){
+            let createDate = moment(new Date()).format('YYYY-MM-DD HH:mm:ss'); /*格式化当前时间时间*/
+            if (!!images && images.length > 0) {
+                for (let index = 0; index < images.length; index++) {
+                    let attachmentCmd = '';
+                    try {
+                        let image = images[index];
+                        attachmentCmd = `insert into dl_return_attachment (f_returnid, f_seq_no, f_type, f_file_url, f_file_size, f_create_date, f_file_name) values('${returnId}','${seqNo}', '${image.type}',  '${image.url}', '${image.size}', '${createDate}', '${image.filename}')`;
+                        DbServiceObj.executeSmQuery(attachmentCmd);
+                    } catch (e) {
+                        console.log(e);
+                    }
                 }
             }
         }
+    }
+    async compareAttachmentHandle(seq_no, images, operationHistory){
+        let documents = [];
+        let imagesArr = [];
+        let cmd = ` SELECT f_file_name FROM dl_return_attachment WHERE f_seq_no = '${seq_no}'`;
+        let selData = await DbServiceObj.executeSmQuery(cmd);
+        if (!!selData && selData.length > 0)
+            selData = JSON.parse(JSON.stringify(selData));
+        else
+            selData='';
+        for(let index in selData){
+            documents.push(selData[index]['f_file_name']);
+        }
+        if(!!images && images.length > 0) {
+            for (let index = 0; index < images.length; index++) {
+                imagesArr.push(images[index].filename);
+            }
+            let docs = documents.concat(imagesArr).join(';');
+            operationHistory[docs] = imagesArr.join(';');
+        }
+        return operationHistory
     }
 }
 

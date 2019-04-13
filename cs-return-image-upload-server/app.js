@@ -28,9 +28,9 @@ let app = express();
 
 
 app.post('/upload', upload.single('image'), function (req, res, next) {
-
+    console.log(req.file);
     let data = {
-        filename: req.file.filename,
+        filename: req.file.originalname,
         path: req.file.path,
         size:  req.file.size,
         type: req.file.mimetype,
@@ -44,18 +44,8 @@ app.post('/images/upload', upload.array('images', 10), function (req, res, next)
   if(!req.files || req.files.length == 0) return send(responseData);
 
   req.files.map(x => {
-
-      let fileName = x.originalname.split('.');
-      let name = '';
-      for(let i = 0; i < fileName.length -1 ; i++){
-          if(i == 0 )
-              name = fileName[i];
-          else
-              name = name  +'.' +  fileName[i];
-      }
-      name = name + '_' +  Date.now() + '.' + fileName.pop();
     responseData.push({
-        filename: name,
+        filename: x.originalname,
         path: x.path,
         size: x.size,
         type: x.mimetype,
