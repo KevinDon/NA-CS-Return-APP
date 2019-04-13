@@ -1,5 +1,0 @@
-const SaleMessageApiConfig = {
-    login:'http://smtwo.test.com/api/index/login',
-    tracking: 'http://smtwo.test.com/api/index/tracking'
-};
-export {SaleMessageApiConfig}
