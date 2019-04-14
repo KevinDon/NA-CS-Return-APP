@@ -7,6 +7,8 @@ import * as fs from 'fs';
 import * as stream from 'stream';
 import * as mysql from 'mysql';
 import * as moment from 'moment';
+// import {SmgReturnRemarkControllerObj} from './Controller/SmgReturnController';
+ import * as SmgServerControllerObj from './Controller/SmgServerController';
 
 
 enum ActionType {
@@ -449,6 +451,16 @@ export default class CSReturnController {
             operationHistory[docs] = imagesArr.join(';');
         }
         return operationHistory
+    }
+
+    async testOrm(req, res){
+        let data = req.body;
+        let result = await SmgServerControllerObj;
+        console.log(result);
+        // let DlReturnRemarkRepository = connection.getRepository(dl_return_remark);
+        // let DlReturnRemark = await DlReturnRemarkRepository.findOne(52);
+        //console.log(dl_return_remark);
+        //});
     }
 }
 
