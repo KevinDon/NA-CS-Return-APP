@@ -4,7 +4,10 @@ import * as cors from "cors";
 import * as methodOverride from "method-override";
 import QueryController from "./QueryController";
 import {ServerConfig} from "./Config";
+import {dbInit} from "./Controller/SmgServerController";
 import CSReturnController from "./CSReturnController";
+
+
 
 const app: express.Application = express();
 app.use(bodyParser.urlencoded({ extended: true }));
@@ -29,3 +32,6 @@ const port = ServerConfig.port;
 app.listen(port, () => {
     console.log(`Listening at ${port}`);
 });
+
+//调用数据库
+console.log(dbInit());

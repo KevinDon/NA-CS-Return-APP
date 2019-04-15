@@ -1,4 +1,5 @@
-const imageFolder='/var/www/html/salemessage/csreturn';
+const imageFolder='/workspace/Newaim/imageServer';
+// const imageFolder='/var/www/html/salemessage/csreturn';
 // const imageFolder='./files';
 const imageUrlRoot = 'http://10.1.1.190/salemessage/csreturn';
 const port = 53500;
