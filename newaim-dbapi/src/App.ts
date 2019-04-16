@@ -34,4 +34,4 @@ app.listen(port, () => {
 });
 
 //调用数据库
-console.log(dbInit());
+dbInit();

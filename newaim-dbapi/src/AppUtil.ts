@@ -77,5 +77,8 @@ export default class AppUtil{
         return $data;
     }
 
+    static dbRowFormat(result){
+        return JSON.parse(JSON.stringify(result));
+    }
 }
 

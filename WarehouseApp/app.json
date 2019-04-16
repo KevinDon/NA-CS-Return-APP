@@ -27,9 +27,9 @@
     },
     "description": ""
   },
-  "apiServer": "http://10.1.1.190:53300",
-  "imageServer": "http://10.1.1.190:53500",
-  "smApiServer": "http://10.1.1.190:53300",
+  "apiServer": "http://192.168.0.104:53300",
+  "imageServer": "http://192.168.0.104:53500",
+  "smApiServer": "http://192.168.0.104:53300",
   "version": "1.3.4",
   "returnReasons": [
     {"value":"request_by_new_aim", "label":"Request By New Aim"},

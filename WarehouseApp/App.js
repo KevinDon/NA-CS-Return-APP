@@ -175,7 +175,7 @@ export default class App extends React.Component {
     // this.setProcessSecondHandWithDefaultValue();
     //this.getNextSeqNo();
     this.setState({
-      viewMode: ViewMode.Login
+      viewMode: ViewMode.Details
     });
     this.setProcessSecondHandWithDefaultValue();
   }
@@ -881,8 +881,8 @@ export default class App extends React.Component {
     });
 
     let client = new ApiClient();
-    let responseData = await client.findDataBySeqNo(seqNum);
-
+      console.log(seqNum);
+      let responseData = await client.findDataBySeqNo(seqNum);
     let newProductDetails = JSON.parse(JSON.stringify(this.state.productDetails));
     let newReturnDetails = JSON.parse(JSON.stringify(this.state.returnDetails));
     let newNextSeqNo = JSON.parse(JSON.stringify(this.state.next_seq_no));

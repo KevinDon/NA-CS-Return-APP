@@ -455,8 +455,9 @@ export default class CSReturnController {
     }
 
     async testOrm(req, res){
-        let data = req.body;
-        SmgReturnRemarkControllerObj.getRowById(52);
+        let result = await SmgReturnRemarkControllerObj.getRowById(52);
+        result = AppUtil.dbRowFormat(result);
+        console.log(result.f_remark);
     }
 }
 
