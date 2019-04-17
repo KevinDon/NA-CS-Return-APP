@@ -9,6 +9,7 @@ export default class ApiClient{
 
   saveReturn = async requestData => {
     let url = apiServer + `/csreturn/saveReturn`;
+
     let response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -92,7 +93,6 @@ export default class ApiClient{
           seq_no:SeqNo
       };
       let url = smApiServer + '/csreturn/findDataBySeqNo';
-      console.log(requestData);
       let response = await fetch(url, {
           method: 'POST',
           headers: {

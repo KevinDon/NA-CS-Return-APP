@@ -47,6 +47,10 @@ export default class App extends React.Component {
     uploadimg:[],
     uploadimgs:false,
     uploadedimg:[],
+    addreturn:true,
+    currenUser:'',
+    currenUserId:'',
+    trackno:'',
 
     errorStatus: false,
     errorMsg: '',
@@ -226,13 +230,10 @@ export default class App extends React.Component {
     if(responseData.msg==="success"){
       this.setState({
         viewMode: ViewMode.Details,
+        currenUser:responseData.data[0].username,
+        currenUserId:responseData.data[0].userId
       });
       this.handleReturnUpdate('f_receiver', account);
-      this.handleReturnUpdate('f_create_userid', responseData.data[0].userId);
-      this.handleReturnUpdate('f_lastupdate_userid', responseData.data[0].userId);
-      this.handleReturnUpdate('f_create_username', responseData.data[0].username);
-      this.handleReturnUpdate('f_lastupdate_username', responseData.data[0].username);
-        console.log(this.state.returnDetails);
     }else{
       this.setState({
         viewMode: ViewMode.Login,
@@ -327,7 +328,6 @@ export default class App extends React.Component {
     let responseData = await apiClient.findSkuByBarcode(barcode);
 
     if(!!responseData) {
-
       if(!!responseData.data && !!responseData.data.length > 0 && !!responseData.data[0].sku){
         sku = responseData.data[0].sku;
       }else{
@@ -339,7 +339,6 @@ export default class App extends React.Component {
           ],
         );
       }
-
     }
     this.handleProductUpdate('f_sku', sku);
 
@@ -349,6 +348,7 @@ export default class App extends React.Component {
   };
 
   parseTrackingScanData = (trackingScanData) => {
+    console.log(trackingScanData);
     if(!trackingScanData || trackingScanData.trim() == '') return;
 
     const eParcelPrefix = '019931265099999891';
@@ -368,23 +368,27 @@ export default class App extends React.Component {
     let trackingNo = this.parseTrackingScanData(scanData);
     if(!trackingNo) return;
     await this.loadDetails(trackingNo);
-    this.handleProductUpdate('f_delivery_tracking_no', trackingNo);
+    trackingNo = this.state.trackno;
+	console.log(trackingNo);
+    await this.handleProductUpdate('f_delivery_tracking_no', trackingNo);
   };
 
-  handleScanReturnTracking = async(scanData) => {
-    let trackingNo = this.parseScanData(scanData);
-    if(!trackingNo) return;
 
+  handleScanReturnTracking = async(scanData) => {
+    let trackingNo = this.parseTrackingScanData(scanData);
+    if(!trackingNo) return;
     await this.loadDetails(trackingNo);
-    this.handleReturnUpdate('f_return_tracking_no', trackingNo);
+    trackingNo = this.state.trackno;
+	console.log(trackingNo);
+    await this.handleReturnUpdate('f_return_tracking_no', trackingNo);
   };
 
   handleBarcodeRead = async (scanData) => {
     const {scanType} = this.state;
     if(scanType === ScanType.DeliveryTracking) {
-      return await this.handleScanDeliveryTracking(scanData);
+      return await this.handleScanDeliveryTracking(scanData.data);
     }  else if(scanType === ScanType.ReturnTracking) {
-      return await this.handleScanReturnTracking(scanData);
+      return await this.handleScanReturnTracking(scanData.data);
     } else if(scanType === ScanType.SeqNum){
       this.handleScanSeqNum(scanData);
     }else {
@@ -411,14 +415,38 @@ export default class App extends React.Component {
     try{
       let client = new ApiClient();
       let response = await client.findDataByTracking(tracking);
+      console.log(response.data[0]);
 
-      for (let key of Object.keys(response.data[0])) {
+      for (let key of Object.keys(response.data[0].oms)) {
         if(newProductDetails.hasOwnProperty(key) && !newProductDetails[key].value){
-          newProductDetails[key].value = response.data[0][key];
+          newProductDetails[key].value = response.data[0].oms[key];
         } else if(newReturnDetails.hasOwnProperty(key) && !newReturnDetails[key].value) {
-          newReturnDetails[key].value = response.data[0][key];
+          newReturnDetails[key].value = response.data[0].oms[key];
         }
       }
+
+      if(!response.data[0].oms.f_sku && !!response.data[0].smg.f_sku ){
+          newProductDetails['f_sku'] = response.data[0].smg['f_sku'];
+      }
+      if(!!response.data[0].smg.f_ticketno){
+          newReturnDetails['f_ticket_no'] = response.data[0].smg['f_ticketno'];
+      }
+      if(!!response.data[0].smg.f_tracking_no){
+          this.setState({
+             trackno: response.data[0].smg.f_tracking_no
+          });
+      }else{
+          this.setState({
+              trackno: ''
+          });
+      }
+      console.log(this.state.trackno);
+
+      if(!response.data[0].smg.f_seq_no && !response.data[0].oms.f_seq_no){
+          newReturnDetails['f_seq_no'] = this.state.next_seq_no;
+      }
+
+
     } catch (e) {
       this.clearData();
       errorStatus = true;
@@ -601,26 +629,29 @@ export default class App extends React.Component {
       return;
     }
 
-
     //快递单号验证
     let returnReason = returnDetails.f_return_reason.value;
     let skipCheckReason = ['Label lost', "Customer's own"];
-    if(!productDetails.f_delivery_tracking_no.value
-      && !returnDetails.f_return_tracking_no.value
-      && skipCheckReason.indexOf(returnReason) < 0) {
-      Alert.alert(
-        'Submit',
-        'Please provide a delivery or a return tracking no before submission',
-        [
-          {text: 'OK'},
-        ],
-      );
-      return;
-    }
+      if(this.state.returnDetails.f_return_reason.value!=='label_lost'){
+          if(!productDetails.f_delivery_tracking_no.value
+              && !returnDetails.f_return_tracking_no.value
+              && skipCheckReason.indexOf(returnReason) < 0) {
+              Alert.alert(
+                  'Submit',
+                  'Please provide a delivery or a return tracking no before submission',
+                  [
+                      {text: 'OK'},
+                  ],
+              );
+              return;
+          }
+      }
+
 
     this.setState({
       viewMode: ViewMode.Loading
     });
+
 
     let requestData = {};
     let keys = Object.keys(this.state.productDetails);
@@ -653,7 +684,6 @@ export default class App extends React.Component {
           f_file_name:imgdata[i].filename,
           f_file_size:1024,//imgdata[i].size,
           f_type:'jpg',//imgdata[i].type
-
         };
         requestData['images'].push(imgdata[i]);
       }
@@ -661,6 +691,15 @@ export default class App extends React.Component {
 
     let client = new ApiClient();
     requestData['f_seq_no']=this.state.next_seq_no.value;
+    if(!!this.state.addreturn){
+        requestData['f_create_userid'] = this.state.currenUserId;
+        requestData['f_create_username'] =this.state.currenUser;
+        requestData['f_lastupdate_userid'] = this.state.currenUserId;
+        requestData['f_lastupdate_username'] =this.state.currenUser;
+    }else{
+        requestData['f_lastupdate_userid'] = this.state.currenUserId;
+        requestData['f_lastupdate_username'] =this.state.currenUser;
+    }
     console.log(requestData);
     let responseData = await client.saveReturn(requestData);
 
@@ -690,6 +729,7 @@ export default class App extends React.Component {
       submitMsg: submitMsg,
       viewMode: ViewMode.Details,
       uploadedimg:[],
+      addreturn:true,
     });
   };
 
@@ -737,7 +777,7 @@ export default class App extends React.Component {
 
     let newReturnDetails = JSON.parse(JSON.stringify(this.state.returnDetails));
     Object.keys(newReturnDetails).map(key => {
-      if(key === 'f_receiver' || key === 'f_return_courier_name'||key==='f_create_userid'||key==='f_create_username'||key==='f_lastupdate_userid'||key==='f_lastupdate_username') return;
+      if(key === 'f_receiver') return;
       if(typeof newReturnDetails[key].value === 'number') newReturnDetails[key].value = 0;
       else newReturnDetails[key].value = '';
     });
@@ -869,7 +909,6 @@ export default class App extends React.Component {
       scanType: ScanType.SeqNum
     });
   };
-
   //手动填写序列号
   handleSeqNum = async () =>{
     if(!this.state.next_seq_no.value){return};
@@ -881,17 +920,24 @@ export default class App extends React.Component {
     });
 
     let client = new ApiClient();
-      console.log(seqNum);
-      let responseData = await client.findDataBySeqNo(seqNum);
+    let responseData = await client.findDataBySeqNo(seqNum);
+    if(responseData.data[0].length!==0){
+      if(!!responseData.data[0].f_process_secondhand){
+        this.handleReturnUpdate('f_process_secondhand',responseData.data[0].f_process_secondhand);
+      };
+      this.setState({
+          addreturn:false
+      })
+    }
+    //console.log(this.state);
     let newProductDetails = JSON.parse(JSON.stringify(this.state.productDetails));
     let newReturnDetails = JSON.parse(JSON.stringify(this.state.returnDetails));
     let newNextSeqNo = JSON.parse(JSON.stringify(this.state.next_seq_no));
     newNextSeqNo.value = seqNum;
 
     let callbackDatas = responseData.data[0];
-    console.log(callbackDatas);
     for (let key of Object.keys(callbackDatas)) {
-      if(key!=='f_receiver'&& key!=='f_create_username'&& key!=='f_create_userid'&& key!=='f_lastupdate_userid'&& key!=='f_lastupdate_username'){
+      if(key!=='f_receiver'){
         if(newProductDetails.hasOwnProperty(key) && !newProductDetails[key].value){
           newProductDetails[key].value = callbackDatas[key];
         } else if(newReturnDetails.hasOwnProperty(key) && !newReturnDetails[key].value) {
@@ -901,7 +947,6 @@ export default class App extends React.Component {
         }
       }
     }
-    console.log(this.state.returnDetails);
 
     // this.clearData();
     this.setState({
@@ -914,7 +959,6 @@ export default class App extends React.Component {
       viewMode: ViewMode.Details
     });
   };
-
   //序列号扫码后回调填写
   handleScanSeqNum = async (scanData) =>{
     //返回扫描结果进入loading界面
@@ -925,7 +969,14 @@ export default class App extends React.Component {
     //根据扫描得到条形码后调用请求
     let client = new ApiClient();
     let responseData = await client.findDataBySeqNo(scanData.data);
-    //console.log(responseData);
+    if(responseData.data[0].length!==0){
+      if(!!responseData.data[0].f_process_secondhand){
+        this.handleReturnUpdate('f_process_secondhand',responseData.data[0].f_process_secondhand);
+      };
+      this.setState({
+          addreturn:false
+      })
+    }
 
     let newProductDetails = JSON.parse(JSON.stringify(this.state.productDetails));
     let newReturnDetails = JSON.parse(JSON.stringify(this.state.returnDetails));
@@ -952,7 +1003,6 @@ export default class App extends React.Component {
     //更新填写条形码
     this.updateNextSeqNo(scanData.data);
   };
-
   //相册选择功能
   pickPhotos = async () =>{
     await Permissions.askAsync(Permissions.CAMERA);
@@ -976,9 +1026,6 @@ export default class App extends React.Component {
       });
     }
 
-
-
-
     // if(newphoto.cancelled!==true){
     //     uploadimg.concat(newphoto.uri);
     //     this.setState({
@@ -995,7 +1042,6 @@ export default class App extends React.Component {
     //     })
     // }
   };
-
   //图片上传功能
   handleupload = async () =>{
     let photouri = this.state.uploadimg[0];
@@ -1065,6 +1111,30 @@ export default class App extends React.Component {
         [{text: 'OK'}],
       );
     }
+  };
+  //扫描快递码
+  startScanDeliveryTrackingNo = async () =>{
+      this.setState({
+          viewMode: ViewMode.Scanning,
+          scanType: ScanType.DeliveryTracking
+      });
+  };
+  startScanReturnTrackingNo = async () =>{
+        this.setState({
+            viewMode: ViewMode.Scanning,
+            scanType: ScanType.ReturnTracking
+        });
+    };
+  //填写快递码
+  handleTextDeliveryTrackingNo = async () =>{
+    let trackingNo = this.state.productDetails.f_delivery_tracking_no.value;
+    if(!trackingNo)return;
+    this.handleScanDeliveryTracking(trackingNo);
+  };
+  handleTextReturnTrackingNo = async () =>{
+    let trackingNo = this.state.returnDetails.f_return_tracking_no.value;
+    if(!trackingNo)return;
+    this.handleScanReturnTracking(trackingNo);
   };
 
   handleSelectPhoto = () =>{
@@ -1312,12 +1382,14 @@ export default class App extends React.Component {
                          onFocus={(event) => {
                            this.scrollToInput(findNodeHandle(event.target))
                          }}
+                         //onBlur={this.handleTextDeliveryTrackingNo}
                          ref='4'
               />
               <Icon
-                name={'search'}
-                type='font-awesome'
-                onPress={() => this.handleScanDeliveryTracking(productDetails.f_delivery_tracking_no.value)}
+                name={'barcode'}
+                type='font-awesome'newan
+                //onPress={() => this.handleScanDeliveryTracking(productDetails.f_delivery_tracking_no.value)}
+                onPress={() =>{this.startScanDeliveryTrackingNo()}}
               />
             </View>
             <FormLabel>{returnDetails.f_return_tracking_no.label}</FormLabel>
@@ -1334,12 +1406,13 @@ export default class App extends React.Component {
                          blurOnSubmit={false}
                          onFocus={(event) => {
                            this.scrollToInput(findNodeHandle(event.target))
-                         }}
+                           }}
+                         //onBlur={this.handleTextReturnTrackingNo}
               />
               <Icon
-                name={'search'}
+                name={'barcode'}
                 type='font-awesome'
-                onPress={() => this.loadDetails(returnDetails.f_return_tracking_no.value)}
+                onPress={() => {this.startScanReturnTrackingNo()}}
               />
             </View>
 

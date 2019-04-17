@@ -40,36 +40,26 @@ export default class CSReturnController {
         let row = data1.recordset[0];
         let orderNo = row.order_no;
         let sku = row.sku;
-        let $data = {
-            "tracking_number": tracking,
-            "timestamp": new Date().getTime(),
-        };
-        $data = AppUtil.encipherSMG($data);
-        AppUtil.requestPostJson(
-            {
-                url: SaleMessageApiConfig.tracking,
-                data: $data
-            },
-            function (json) {
-                if (!!json && json.data.length > 0) {
-                    tracking = json.data.tracking_number;
-                }
-            });
 
+        // cmd = `SELECT ticket.f_ticket_no, ticket.f_tracking_number as return_tracking_no, ticket_sku.f_sku  FROM dl_ticket ticket LEFT JOIN dl_ticket_sku ticket_sku ON ticket.f_ticket_no = ticket_sku.f_ticketno   WHERE ticket.f_oms_order_id='${orderNo}' AND ticket_sku.f_sku = '${sku}'`;
+        cmd = `SELECT tracking.f_ticketno, ticket.f_sku FROM dl_ticket_return_tracking AS tracking JOIN dl_ticket AS ticket ON tracking.f_ticketno = ticket.f_ticket_no WHERE tracking.f_tracking_number='${tracking}' ORDER BY ticket.f_ticket_no DESC`;
 
+        let data2 = await DbServiceObj.executeSmQuery(cmd);
+        if (data2.length > 0) data2 = JSON.parse(JSON.stringify(data2[0]));
+        if (!!data2 && Object.keys(data2).length > 0) {
+            data2 = data2.push(tracking)
+            row = {oms: row , smg: data2}
+        }else{
+            row =  {oms: row, smg : {}}
+        }
+        row.smg['f_tracking_no'] = tracking;
+        return row;
         //订单编号，SKU都符合
         // cmd = `select f_ticket_no, f_tracking_number as return_tracking_no
         //             from dl_ticket
         //             where [OMS Order No]='${orderNo}'
         //             and (f_sku = '' or f_sku = '${sku}')
         //             order by [Ticket No.] desc`;
-        cmd = `SELECT ticket.f_ticket_no, ticket.f_tracking_number as return_tracking_no, ticket_sku.f_sku  FROM dl_ticket ticket LEFT JOIN dl_ticket_sku ticket_sku ON ticket.f_ticket_no = ticket_sku.f_ticketno   WHERE ticket.f_oms_order_id='${orderNo}' AND ticket_sku.f_sku = '${sku}'`;
-        let data2 = await DbServiceObj.executeSmQuery(cmd);
-        if (data2.length > 0) data2 = JSON.parse(JSON.stringify(data2[0]));
-        if (!!data2 && data2.length > 0) {
-            row = {row , data2}
-        }
-        return row;
     }
 
     async findDataByTracking2(tracking) {
@@ -100,48 +90,55 @@ export default class CSReturnController {
     }
 
     async findDataByTracking(req, res) {
+        let me = this;
         let tracking = req.query.tracking;
         if (!tracking || typeof tracking !== 'string') return res.send('');
         tracking = tracking.replace('(', '').replace(')', '').trim();
 
         // let cmd = `select f_loginname,f_password from dl_cs_user where f_loginname='${account}'`;
         // let row = await DbServiceObj.executeSmQuery(cmd);
-        let $data = {
-            "tracking_number": tracking,
+        let $trackingData = {
             "timestamp": new Date().getTime(),
+            "tracking_number": tracking,
         };
-        $data = AppUtil.encipherSMG($data);
-        AppUtil.requestPostJson(
-            {
+        $trackingData = await AppUtil.encipherSMG($trackingData);
+        await AppUtil.requestPostJson({
                 url: SaleMessageApiConfig.tracking,
-                data: $data
-            },
-            function (json) {
-                if (!!json && json.data.length > 0) {
-                    tracking = json.data.tracking_number;
+                data: $trackingData
+            }, async function(json){
+            if (!!json && !!json.data[0]&& json.data.length > 0) {
+                let smgTracking = json.data[0].tracking_number;
+                // let cmd = `SELECT * FROM dl_ticket_return_tracking WHERE f_tracking_number='${tracking}'`;
+                let cmd = `SELECT tracking.f_ticketno, ticket.f_sku FROM dl_ticket_return_tracking AS tracking JOIN dl_ticket AS ticket ON tracking.f_ticketno = ticket.f_ticket_no WHERE tracking.f_tracking_number='${smgTracking}' ORDER BY ticket.f_ticket_no DESC`;
+                //let connection = await DbServiceObj.getSysDbConnection();
+                let [data1,  data2] = await Promise.all([
+                    await me.findDataByTrackingOms(smgTracking),
+                    //this.findDataByTracking2(tracking),
+                    // DbServiceObj.executeSmQuery(cmd)
+                    await DbServiceObj.executeSmQuery(cmd)
+                ]);
+                let responseData = data1;
+                if (!data1 && !!data2 && data2.length > 0){
+                    //console.log(data2);
+                    //data2 = data2.push(smgTracking);
+                    //console.log(data2);
+                    responseData = {oms: {},  smg: data2 };
+                   // console.log(responseData)
                 }
-            });
-
+                //if(!!data3 && data3.length > 0) responseData = data3[0];
+                if (!responseData || responseData.length == 0){
+                    responseData = {oms: {},  smg: {f_ticket_no: smgTracking} };
+                }
+                responseData.smg['f_tracking_no'] = smgTracking;
+                console.log(responseData);
+                // let ticket = await me.findTicket(tracking);
+                res.send(AppUtil.responseJSON('1', [responseData], 'Query Successful', true));
+            }
+        })
         //re-submit of tracking
         // let cmd = `select *
         //     from cs_return where delivery_tracking_no='${tracking}' or return_tracking_no = '${tracking}'
         //     order by Id desc limit 1`;
-
-        // let cmd = `SELECT * FROM dl_ticket_return_tracking WHERE f_tracking_number='${tracking}'`;
-        let cmd = `SELECT tracking.f_ticketno, ticket.f_sku FROM dl_ticket_return_tracking AS tracking JOIN dl_ticket AS ticket ON tracking.f_ticketno = ticket.f_ticket_no WHERE tracking.f_tracking_number='${tracking}' ORDER BY ticket.f_ticket_no DESC`;
-        //let connection = await DbServiceObj.getSysDbConnection();
-        let [data1, data2] = await Promise.all([
-            this.findDataByTrackingOms(tracking),
-            //this.findDataByTracking2(tracking),
-            // DbServiceObj.executeSmQuery(cmd)
-            await DbServiceObj.executeSmQuery(cmd)
-        ]);
-        let responseData = data1;
-        if (!data1 && !!data2) responseData = data2[0];
-        //if(!!data3 && data3.length > 0) responseData = data3[0];
-        if (!responseData) responseData = {};
-
-        res.send(AppUtil.responseJSON('1', [responseData], 'Query Successful', true));
     }
 
     async saveReturn(req, res) {
@@ -181,7 +178,7 @@ export default class CSReturnController {
                     requestData['images'] = '';
                     continue;
                 }
-                if(!!selDataObj && requestData[field] != selDataObj[field] && selData.length > 0 && field != 'images'){
+                if(!!selDataObj && requestData[field] != selDataObj[field] && selData.length > 0 && field != 'images' && field != 'f_note' && field != 'f_lastupdate_userid' && (requestData[field] != '' && selDataObj[field] != null)){
                     let newValue = !!requestData[field] ? requestData[field] : '';
                     let oldValue = !!selDataObj[field] ? selDataObj[field] : '';
                     $operationHistory[field] = {};
@@ -203,13 +200,13 @@ export default class CSReturnController {
             cmd = `UPDATE dl_return SET ${columns.join('=?, ')} =? WHERE f_seq_no= "${requestData.f_seq_no}"`;
             // await this.addAuditLog(selData.id, requestData.f_seq_no, requestData.f_create_userid, actionType, JSON.stringify(req.body)).then(function(){
             // });
-            let createDate = moment(new Date()).format('YYYY-MM-DD HH:mm:ss'); /*格式化当前时间时间*/
+            let createDate = AppUtil.momentToCN(); /*格式化当前时间时间*/
             if(Object.keys($operationHistory).length != 0){
                 let historyCmd = `INSERT INTO dl_return_operation_history (f_returnid, f_seq_no, f_operation_history, f_create_userid, f_create_date)  VALUES('${selDataObj.id}', '${requestData.f_seq_no}', '${JSON.stringify($operationHistory)}', '${requestData.f_create_userid}', '${createDate}')`;
-                await me.saveReturnNote(selDataObj.id, requestData);
                 await DbServiceObj.executeSmQuery(historyCmd)
             }
-            DbServiceObj.updateSmQuery(cmd, values);
+            await me.saveReturnNote(selDataObj.id, requestData);
+            await DbServiceObj.updateSmQuery(cmd, values);
             let response = AppUtil.responseJSON('1', [], 'Update successful.', true);
             res.send(response);
         }else {
@@ -217,9 +214,10 @@ export default class CSReturnController {
             cmd = mysql.format(`INSERT INTO dl_return (${columns.join()})  VALUES(${placeholders.join(',')})`, values);
             let data = await DbServiceObj.executeSmQuery(cmd);
             await me.saveReturnNote(data.insertId, requestData);
-            actionType = ActionType.Add;
             if (data.length > 0) data = JSON.parse(JSON.stringify(data[0]));
-            let imageResponse = this.uploadImageHandle(data.insertId, requestData.f_seq_no, images);
+            if(!!images && images.length > 0){
+                let imageResponse = this.uploadImageHandle(data.insertId, requestData.f_seq_no, images);
+            }
             let response = AppUtil.responseJSON('1', [], 'Save Successfully', true);
             //await this.addAuditLog(data.insertId, requestData.f_seq_no, requestData.f_create_userid, actionType, JSON.stringify(req.body));
             res.send(response);
@@ -261,6 +259,7 @@ export default class CSReturnController {
     }
 
     async findTicket(req, res) {
+        /*TODO
         let ordreNo = req.query.orderNo;
         let ret = {};
         if (!ordreNo || typeof ordreNo !== 'string') return res.send(ret);
@@ -272,6 +271,13 @@ export default class CSReturnController {
             ret["ticketNo"] = data.recordset[0].ticket_no;
         }
         res.send(ret);
+        */
+        // let cmd = `SELECT f_ticket_no,f_return_method,f_return_amount,f_return_initiated,f_return_received,f_inspection_outcome,f_sku FROM dl_ticket WHERE f_ticket_no in (SELECT f_ticketno FROM dl_ticket_return_tracking WHERE f_tracking_number='${tracking}')`;
+        // let ticketData = await DbServiceObj.executeSmQuery(cmd);
+        // if (ticketData.length > 0)
+        //     return JSON.parse(JSON.stringify(ticketData[0]));
+        // else
+        //     return {}
     }
 
     async getAllReturn(req, res) {
@@ -403,21 +409,43 @@ export default class CSReturnController {
     async findDataBySeqNo(req, res) {
         let data = req.body;
         let cmd = ` SELECT * FROM dl_return WHERE f_seq_no = '${data.seq_no}'`;
+        let remarkCmd = `SELECT f_remark FROM dl_return_remark WHERE f_seq_no='${data.seq_no}' ORDER BY id DESC LIMIT 1`;
         let result = await DbServiceObj.executeSmQuery(cmd);
-        if (result.length > 0) result = JSON.parse(JSON.stringify(result[0]));
+        let remarkResult = await DbServiceObj.executeSmQuery(remarkCmd);
+
+        if (!!result && result.length > 0) result = JSON.parse(JSON.stringify(result[0]));
+        if (!!remarkResult && remarkResult.length > 0){
+            remarkResult = JSON.parse(JSON.stringify(remarkResult[0]));
+            result.f_note = remarkResult.f_remark;
+        }
+        else{
+            result.f_note = ''
+        }
         let response = AppUtil.responseJSON('1', [result], 'Query Successful', true);
         res.send(response);
     }
 
     async saveReturnNote(returnId, requestData){
-        let createDate = moment(new Date()).format('YYYY-MM-DD HH:mm:ss'); /*格式化当前时间时间*/
-        let remarkCmd = `INSERT INTO dl_return_remark (f_returnid, f_seq_no, f_remark, f_create_userid, f_create_date)  VALUES('${returnId}', '${requestData.f_seq_no}', '${requestData.f_note}', '${requestData.f_create_userid}', '${createDate}')`;
-        DbServiceObj.executeSmQuery(remarkCmd)
+        let createDate = AppUtil.momentToCN();
+        let selDataCmd =`SELECT * FROM dl_return_remark WHERE f_seq_no='${requestData.f_seq_no}'  ORDER BY id desc limit 1`;
+        let selData = await DbServiceObj.executeSmQuery(selDataCmd);
+        if (!!selData && selData.length > 0){
+            selData = JSON.parse(JSON.stringify(selData));
+        }
+
+        //检测数据库是否已存在NOTE
+        if(selData.length == 0 && !!requestData.f_note){
+            let remarkCmd = `INSERT INTO dl_return_remark (f_returnid, f_seq_no, f_remark, f_create_userid, f_create_date)  VALUES('${returnId}', '${requestData.f_seq_no}', '${requestData.f_note}', '${requestData.f_create_userid}', '${createDate}')`;
+            DbServiceObj.executeSmQuery(remarkCmd);
+        }else if(!!selData &&  selData[0]['f_remark'] != requestData.f_note){//检测存在的NOTE记录是否与当前提交的NOTE是否相同
+            let remarkCmd = `INSERT INTO dl_return_remark (f_returnid, f_seq_no, f_remark, f_create_userid, f_create_date)  VALUES('${returnId}', '${requestData.f_seq_no}', '${requestData.f_note}', '${requestData.f_create_userid}', '${createDate}')`;
+            DbServiceObj.executeSmQuery(remarkCmd);
+        }
     }
 
     async uploadImageHandle(returnId, seqNo, images) {
         if(!!images && images.length > 0){
-            let createDate = moment(new Date()).format('YYYY-MM-DD HH:mm:ss'); /*格式化当前时间时间*/
+            let createDate = AppUtil.momentToCN()
             if (!!images && images.length > 0) {
                 for (let index = 0; index < images.length; index++) {
                     let attachmentCmd = '';
@@ -444,12 +472,13 @@ export default class CSReturnController {
         for(let index in selData){
             documents.push(selData[index]['f_file_name']);
         }
-        if(!!images && images.length > 0) {
-            for (let index = 0; index < images.length; index++) {
+        if(!!images && images.length > 0){
+            for(let index = 0; index < images.length; index ++){
                 imagesArr.push(images[index].filename);
             }
             let docs = documents.concat(imagesArr).join(';');
-            operationHistory[docs] = imagesArr.join(';');
+            operationHistory['f_attachment'] = {};
+            operationHistory['f_attachment'][docs] = documents.join(';');
         }
         return operationHistory
     }

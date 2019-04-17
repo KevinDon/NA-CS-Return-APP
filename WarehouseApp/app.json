@@ -30,7 +30,7 @@
   "apiServer": "http://192.168.0.104:53300",
   "imageServer": "http://192.168.0.104:53500",
   "smApiServer": "http://192.168.0.104:53300",
-  "version": "1.3.4",
+  "version": "1.4.3",
   "returnReasons": [
     {"value":"request_by_new_aim", "label":"Request By New Aim"},
     {"value":"wrong_address", "label":"Wrong address"},
@@ -48,7 +48,8 @@
     {"value":"allied","label":"Allied"},
     {"value":"fastway","label": "Fastway"},
     {"value":"toll", "label":"TOLL"},
-    {"value":"auspost", "label":"auspost"}
+    {"value":"auspost", "label":"auspost"},
+    {"value":"Customer's own", "label":"Customer's own"}
   ],
   "processTypes" : [
     {"label":"ASN","value":"asn"},

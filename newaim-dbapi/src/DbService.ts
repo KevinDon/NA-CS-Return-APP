@@ -32,6 +32,7 @@ class DbService {
 
     getSmDbConnection(){
         if(!this.smDbConnection || this.smDbConnection.state == 'disconnected'){
+
             this.smDbConnection = mysql.createConnection(SalesMessageDbConfig);
             this.smDbConnection.connect();
 
