@@ -10,7 +10,7 @@ const SalesMessageDbConfig = {
     host     : '192.168.1.208',
     user     : 'root',
     password : 'Dropship#123456',
-    database : 'salemessage_newaim_branches_v2',
+    database : 'salemessage_newaim_two',
     connectTimeout : 50000,
     multipleStatements: true
 };

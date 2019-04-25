@@ -41,13 +41,13 @@ export default class CSReturnController {
         let orderNo = row.order_no;
         let sku = row.sku;
 
-        // cmd = `SELECT ticket.f_ticket_no, ticket.f_tracking_number as return_tracking_no, ticket_sku.f_sku  FROM dl_ticket ticket LEFT JOIN dl_ticket_sku ticket_sku ON ticket.f_ticket_no = ticket_sku.f_ticketno   WHERE ticket.f_oms_order_id='${orderNo}' AND ticket_sku.f_sku = '${sku}'`;
-        cmd = `SELECT tracking.f_ticketno, ticket.f_sku FROM dl_ticket_return_tracking AS tracking JOIN dl_ticket AS ticket ON tracking.f_ticketno = ticket.f_ticket_no WHERE tracking.f_tracking_number='${tracking}' ORDER BY ticket.f_ticket_no DESC`;
+        cmd = `SELECT ticket.f_ticket_no, ticket.f_tracking_number as return_tracking_no, ticket_sku.f_sku  FROM dl_ticket ticket LEFT JOIN dl_ticket_sku ticket_sku ON ticket.f_ticket_no = ticket_sku.f_ticketno  WHERE ticket.f_oms_order_id='${orderNo}' AND ticket_sku.f_sku = '${sku}' ORDER BY f_add_time DESC LIMIT 1`;
 
+        //cmd = `SELECT f_sku, f_ticket_no AS f_ticketno FROM dl_return WHERE f_delivery_tracking_no='${tracking}' ORDER BY f_create_date DESC LIMIT 1`;
         let data2 = await DbServiceObj.executeSmQuery(cmd);
         if (data2.length > 0) data2 = JSON.parse(JSON.stringify(data2[0]));
         if (!!data2 && Object.keys(data2).length > 0) {
-            data2 = data2.push(tracking)
+            data2.f_tracking_no = tracking;
             row = {oms: row , smg: data2}
         }else{
             row =  {oms: row, smg : {}}
@@ -92,6 +92,7 @@ export default class CSReturnController {
     async findDataByTracking(req, res) {
         let me = this;
         let tracking = req.query.tracking;
+        let type = req.query.type; //1为Delivery Tracking No.，2为Return Tracking No.
         if (!tracking || typeof tracking !== 'string') return res.send('');
         tracking = tracking.replace('(', '').replace(')', '').trim();
 
@@ -107,30 +108,45 @@ export default class CSReturnController {
                 data: $trackingData
             }, async function(json){
             if (!!json && !!json.data[0]&& json.data.length > 0) {
+                let cmd = '';
+                let seqNoCmd = '';
                 let smgTracking = json.data[0].tracking_number;
                 // let cmd = `SELECT * FROM dl_ticket_return_tracking WHERE f_tracking_number='${tracking}'`;
-                let cmd = `SELECT tracking.f_ticketno, ticket.f_sku FROM dl_ticket_return_tracking AS tracking JOIN dl_ticket AS ticket ON tracking.f_ticketno = ticket.f_ticket_no WHERE tracking.f_tracking_number='${smgTracking}' ORDER BY ticket.f_ticket_no DESC`;
+                if(type == 1){
+                    //Delivery Tracking
+                    cmd = `SELECT f_sku, f_ticket_no AS f_ticketno, f_seq_no FROM dl_return WHERE f_delivery_tracking_no='${smgTracking}' ORDER BY f_create_date DESC LIMIT 1`;
+                    seqNoCmd = `SELECT * FROM dl_return WHERE f_delivery_tracking_no='${smgTracking}' ORDER BY f_create_date DESC LIMIT 1`;
+                }else if(type ==2){
+                    //Return Tracking 'f_process',  'f_return_reason', 'f_return_courier_name'
+                   cmd = `SELECT tracking.f_ticketno, ticket.f_sku FROM dl_ticket_return_tracking AS tracking JOIN dl_ticket AS ticket ON tracking.f_ticketno = ticket.f_ticket_no WHERE tracking.f_tracking_number='${smgTracking}' ORDER BY ticket.f_ticket_no DESC LIMIT 1`;
+                   seqNoCmd = `SELECT * FROM dl_return WHERE f_return_tracking_no='${smgTracking}' ORDER BY f_create_date DESC LIMIT 1`;
+                }
+                //seqNoCmd = `SELECT f_seq_no FROM dl_return WHERE f_return_tracking_no='${smgTracking}' ORDER BY f_create_date DESC LIMIT 1`;
                 //let connection = await DbServiceObj.getSysDbConnection();
-                let [data1,  data2] = await Promise.all([
+                let [data1,  data2, data3] = await Promise.all([
                     await me.findDataByTrackingOms(smgTracking),
                     //this.findDataByTracking2(tracking),
                     // DbServiceObj.executeSmQuery(cmd)
-                    await DbServiceObj.executeSmQuery(cmd)
+                    await DbServiceObj.executeSmQuery(cmd),
+                    await DbServiceObj.executeSmQuery(seqNoCmd)
                 ]);
                 let responseData = data1;
                 if (!data1 && !!data2 && data2.length > 0){
-                    //console.log(data2);
-                    //data2 = data2.push(smgTracking);
-                    //console.log(data2);
+                    data2 = JSON.parse(JSON.stringify(data2[0]));
+                    data2.f_tracking_no = smgTracking;
                     responseData = {oms: {},  smg: data2 };
                    // console.log(responseData)
+                }else if (!responseData || responseData.length == 0){
+                    responseData = {oms: {},  smg: {f_tracking_no: smgTracking} };
+                }else{
+                    responseData['smg'].f_tracking_no = smgTracking;
+                }
+                if(!!data3 && data3.length > 0) {
+                    for(let key in data3[0]){
+                        responseData['smg'][key] = data3[0][key];
+                    }
                 }
                 //if(!!data3 && data3.length > 0) responseData = data3[0];
-                if (!responseData || responseData.length == 0){
-                    responseData = {oms: {},  smg: {f_ticket_no: smgTracking} };
-                }
-                responseData.smg['f_tracking_no'] = smgTracking;
-                console.log(responseData);
                 // let ticket = await me.findTicket(tracking);
                 res.send(AppUtil.responseJSON('1', [responseData], 'Query Successful', true));
             }
@@ -178,7 +194,7 @@ export default class CSReturnController {
                     requestData['images'] = '';
                     continue;
                 }
-                if(!!selDataObj && requestData[field] != selDataObj[field] && selData.length > 0 && field != 'images' && field != 'f_note' && field != 'f_lastupdate_userid' && (requestData[field] != '' && selDataObj[field] != null)){
+                if(!!selDataObj && requestData[field] != selDataObj[field] && selData.length > 0 && field != 'images' && field != 'f_note' && field != 'f_lastupdate_userid' && (requestData[field] != '' && selDataObj[field] != null) || field != 'f_create_userid'){
                     let newValue = !!requestData[field] ? requestData[field] : '';
                     let oldValue = !!selDataObj[field] ? selDataObj[field] : '';
                     $operationHistory[field] = {};
@@ -196,13 +212,15 @@ export default class CSReturnController {
         }
         $operationHistory = await me.compareAttachmentHandle(requestData.f_seq_no,images, $operationHistory);
         if (!!selDataObj && selData.length > 0) {
+            let createDate = AppUtil.momentToCN(); /*格式化当前时间时间*/
             let imageData = await me.uploadImageHandle(selDataObj.id, requestData.f_seq_no, images);
+            columns.push('f_lastupdate_date');
+            values.push(createDate);
             cmd = `UPDATE dl_return SET ${columns.join('=?, ')} =? WHERE f_seq_no= "${requestData.f_seq_no}"`;
             // await this.addAuditLog(selData.id, requestData.f_seq_no, requestData.f_create_userid, actionType, JSON.stringify(req.body)).then(function(){
             // });
-            let createDate = AppUtil.momentToCN(); /*格式化当前时间时间*/
             if(Object.keys($operationHistory).length != 0){
-                let historyCmd = `INSERT INTO dl_return_operation_history (f_returnid, f_seq_no, f_operation_history, f_create_userid, f_create_date)  VALUES('${selDataObj.id}', '${requestData.f_seq_no}', '${JSON.stringify($operationHistory)}', '${requestData.f_create_userid}', '${createDate}')`;
+                let historyCmd = `INSERT INTO dl_return_operation_history (f_returnid, f_seq_no, f_operation_history, f_create_userid, f_create_date)  VALUES('${selDataObj.id}', '${requestData.f_seq_no}', '${JSON.stringify($operationHistory)}', '${requestData.f_lastupdate_userid}', '${createDate}')`;
                 await DbServiceObj.executeSmQuery(historyCmd)
             }
             await me.saveReturnNote(selDataObj.id, requestData);
@@ -211,6 +229,11 @@ export default class CSReturnController {
             res.send(response);
         }else {
             //insert
+            //增加创建时间
+            let createDate = AppUtil.momentToCN();
+            columns.push('f_create_date');
+            placeholders.push('?');
+            values.push(createDate);
             cmd = mysql.format(`INSERT INTO dl_return (${columns.join()})  VALUES(${placeholders.join(',')})`, values);
             let data = await DbServiceObj.executeSmQuery(cmd);
             await me.saveReturnNote(data.insertId, requestData);
@@ -425,6 +448,32 @@ export default class CSReturnController {
         res.send(response);
     }
 
+    async compareAttachmentHandle(seq_no, images, operationHistory){
+        let documents = [];
+        let imagesArr = [];
+        let cmd = `SELECT f_file_name FROM dl_return_attachment WHERE f_seq_no = '${seq_no}'`;
+        let selData = await DbServiceObj.executeSmQuery(cmd);
+        if (!!selData && selData.length > 0){
+            selData = JSON.parse(JSON.stringify(selData));
+            for(let index in selData){
+                documents.push(selData[index]['f_file_name']);
+            }
+        }
+        else{
+                selData='';
+        }
+        if(!!images && images.length > 0){
+            for(let index = 0; index < images.length; index ++){
+                imagesArr.push(images[index].filename);
+            }
+            let docs = documents.concat(imagesArr).join(';');
+            operationHistory['f_attachment'] = {};
+            operationHistory['f_attachment'][docs] = documents.join(';');
+        }
+        console.log(operationHistory);
+        return operationHistory
+    }
+
     async saveReturnNote(returnId, requestData){
         let createDate = AppUtil.momentToCN();
         let selDataCmd =`SELECT * FROM dl_return_remark WHERE f_seq_no='${requestData.f_seq_no}'  ORDER BY id desc limit 1`;
@@ -435,14 +484,15 @@ export default class CSReturnController {
 
         //检测数据库是否已存在NOTE
         if(selData.length == 0 && !!requestData.f_note){
-            let remarkCmd = `INSERT INTO dl_return_remark (f_returnid, f_seq_no, f_remark, f_create_userid, f_create_date)  VALUES('${returnId}', '${requestData.f_seq_no}', '${requestData.f_note}', '${requestData.f_create_userid}', '${createDate}')`;
+            let remarkCmd = `INSERT INTO dl_return_remark (f_returnid, f_seq_no, f_remark, f_create_userid, f_create_date)  VALUES('${returnId}', '${requestData.f_seq_no}', '${requestData.f_note}', '${requestData.f_lastupdate_userid}', '${createDate}')`;
             DbServiceObj.executeSmQuery(remarkCmd);
-        }else if(!!selData &&  selData[0]['f_remark'] != requestData.f_note){//检测存在的NOTE记录是否与当前提交的NOTE是否相同
-            let remarkCmd = `INSERT INTO dl_return_remark (f_returnid, f_seq_no, f_remark, f_create_userid, f_create_date)  VALUES('${returnId}', '${requestData.f_seq_no}', '${requestData.f_note}', '${requestData.f_create_userid}', '${createDate}')`;
-            DbServiceObj.executeSmQuery(remarkCmd);
+        }else if(!!selData && selData.length > 0){//检测存在的NOTE记录是否与当前提交的NOTE是否相同
+            if(selData[0]['f_remark'] != requestData.f_note){
+                let remarkCmd = `INSERT INTO dl_return_remark (f_returnid, f_seq_no, f_remark, f_create_userid, f_create_date)  VALUES('${returnId}', '${requestData.f_seq_no}', '${requestData.f_note}', '${requestData.f_lastupdate_userid}', '${createDate}')`;
+                DbServiceObj.executeSmQuery(remarkCmd);
+            }
         }
     }
-
     async uploadImageHandle(returnId, seqNo, images) {
         if(!!images && images.length > 0){
             let createDate = AppUtil.momentToCN()
@@ -460,28 +510,7 @@ export default class CSReturnController {
             }
         }
     }
-    async compareAttachmentHandle(seq_no, images, operationHistory){
-        let documents = [];
-        let imagesArr = [];
-        let cmd = ` SELECT f_file_name FROM dl_return_attachment WHERE f_seq_no = '${seq_no}'`;
-        let selData = await DbServiceObj.executeSmQuery(cmd);
-        if (!!selData && selData.length > 0)
-            selData = JSON.parse(JSON.stringify(selData));
-        else
-            selData='';
-        for(let index in selData){
-            documents.push(selData[index]['f_file_name']);
-        }
-        if(!!images && images.length > 0){
-            for(let index = 0; index < images.length; index ++){
-                imagesArr.push(images[index].filename);
-            }
-            let docs = documents.concat(imagesArr).join(';');
-            operationHistory['f_attachment'] = {};
-            operationHistory['f_attachment'][docs] = documents.join(';');
-        }
-        return operationHistory
-    }
+
 
     async testOrm(req, res){
         let result = await SmgReturnRemarkControllerObj.getRowById(52);

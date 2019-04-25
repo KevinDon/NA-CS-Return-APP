@@ -1,6 +1,8 @@
+const smgUrl = 'http://cslive.newaim.com.au/';
 const SaleMessageApiConfig = {
-    login:'http://smtwo.test.com/api/index/login',
-    tracking: 'http://smtwo.test.com/api/index/tracking',
-    historyLog: 'http://smtwo.test.com/api/index/savehistory'
+    login: smgUrl + 'api/index/login',
+    tracking: smgUrl + 'api/index/tracking',
+    historyLog: smgUrl + 'api/index/savehistory',
+    ticket: smgUrl + 'api/index/ticketinfo'
 };
 export {SaleMessageApiConfig}
