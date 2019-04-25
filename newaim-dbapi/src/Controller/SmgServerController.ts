@@ -2,21 +2,12 @@ import {createConnection} from "typeorm";
 import {ormConfig} from "../Config/ormConfig";
 import {dl_return_remark} from "../Entity/SmgDlReturn.entity";
 
-export const  dbInit = async()  => {
-    await createConnection({
-        type: "mysql",
-        host: "127.0.0.1",
-        port: 3306,
-        username: "root",
-        password: "123456",
-        database: "sale_message",
-        synchronize: true,
-        logging: false,
-        entities: [
+export const dbInit = async()  => {
+    //注册数据表
+    ormConfig['entities'] = [
             dl_return_remark,
-            "../Entity/SmgDlReturn.entity.ts"
-        ]
-    }).then(async  connection => {
+    ];
+    await createConnection(ormConfig).then(async  connection => {
         console.log('数据库连接成功');
         return true;
     }).catch(error => {

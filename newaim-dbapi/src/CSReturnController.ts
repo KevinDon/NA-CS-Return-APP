@@ -1,14 +1,9 @@
 import {DbServiceObj} from "./DbService";
 import AppUtil from "./AppUtil";
 import {SaleMessageApiConfig} from './saleMessageApi'
-import * as mssql from 'mssql';
 import * as json2xls from 'json2xls';
-import * as fs from 'fs';
 import * as stream from 'stream';
 import * as mysql from 'mysql';
-import * as moment from 'moment';
-// import {SmgReturnRemarkControllerObj} from './Controller/SmgReturnController';
- import * as SmgServerControllerObj from './Controller/SmgServerController';
 import {SmgReturnRemarkControllerObj} from "./Controller/SmgReturnController";
 
 
@@ -513,7 +508,7 @@ export default class CSReturnController {
 
 
     async testOrm(req, res){
-        let result = await SmgReturnRemarkControllerObj.getRowById(52);
+        let result = await SmgReturnRemarkControllerObj.getRowById(45);
         result = AppUtil.dbRowFormat(result);
         console.log(result.f_remark);
     }

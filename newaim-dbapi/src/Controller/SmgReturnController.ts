@@ -42,8 +42,12 @@ class SmgReturnRemarkController{
     }*/
     // private remarkRepository = getRepository(dl_return_remark);
     async getRowById(id){
-        let remarkRepository = getRepository(dl_return_remark);
-        return await remarkRepository.findOne(id);
+        try{
+            let remarkRepository = getRepository(dl_return_remark);
+            return await remarkRepository.findOne(id);
+        }catch(e){
+            console.log('错误信息为：' + e)
+        }
     }
 }
 
