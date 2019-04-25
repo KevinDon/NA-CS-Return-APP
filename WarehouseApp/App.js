@@ -179,7 +179,7 @@ export default class App extends React.Component {
     // this.setProcessSecondHandWithDefaultValue();
     //this.getNextSeqNo();
     this.setState({
-      viewMode: ViewMode.Details
+      viewMode: ViewMode.Login
     });
     this.setProcessSecondHandWithDefaultValue();
   }
@@ -367,17 +367,16 @@ export default class App extends React.Component {
   handleScanDeliveryTracking = async(scanData) => {
     let trackingNo = this.parseTrackingScanData(scanData);
     if(!trackingNo) return;
-    await this.loadDetails(trackingNo);
+    await this.loadDetails(trackingNo,1);
     trackingNo = this.state.trackno;
 	console.log(trackingNo);
     await this.handleProductUpdate('f_delivery_tracking_no', trackingNo);
   };
 
-
   handleScanReturnTracking = async(scanData) => {
     let trackingNo = this.parseTrackingScanData(scanData);
     if(!trackingNo) return;
-    await this.loadDetails(trackingNo);
+    await this.loadDetails(trackingNo,2);
     trackingNo = this.state.trackno;
 	console.log(trackingNo);
     await this.handleReturnUpdate('f_return_tracking_no', trackingNo);
@@ -396,7 +395,7 @@ export default class App extends React.Component {
     }
   };
 
-  loadDetails = async(tracking) => {
+  loadDetails = async(tracking,type) => {
     if(!tracking || tracking.trim() === '') return;
 
     this.setState({
@@ -414,23 +413,23 @@ export default class App extends React.Component {
 
     try{
       let client = new ApiClient();
-      let response = await client.findDataByTracking(tracking);
-      console.log(response.data[0]);
-
-      for (let key of Object.keys(response.data[0].oms)) {
+      let response = await client.findDataByTracking(tracking,type);
+      for (let key of Object.keys(response.data[0].smg)) {
         if(newProductDetails.hasOwnProperty(key) && !newProductDetails[key].value){
-          newProductDetails[key].value = response.data[0].oms[key];
+          newProductDetails[key].value = response.data[0].smg[key];
         } else if(newReturnDetails.hasOwnProperty(key) && !newReturnDetails[key].value) {
-          newReturnDetails[key].value = response.data[0].oms[key];
+          newReturnDetails[key].value = response.data[0].smg[key];
         }
       }
 
       if(!response.data[0].oms.f_sku && !!response.data[0].smg.f_sku ){
-          newProductDetails['f_sku'] = response.data[0].smg['f_sku'];
+          newProductDetails['f_sku'].value = response.data[0].smg['f_sku'];
       }
       if(!!response.data[0].smg.f_ticketno){
-          newReturnDetails['f_ticket_no'] = response.data[0].smg['f_ticketno'];
+          newReturnDetails['f_ticket_no'].value = response.data[0].smg['f_ticketno'];
       }
+
+      console.log(response.data[0]);
       if(!!response.data[0].smg.f_tracking_no){
           this.setState({
              trackno: response.data[0].smg.f_tracking_no
@@ -440,10 +439,19 @@ export default class App extends React.Component {
               trackno: ''
           });
       }
-      console.log(this.state.trackno);
 
-      if(!response.data[0].smg.f_seq_no && !response.data[0].oms.f_seq_no){
-          newReturnDetails['f_seq_no'] = this.state.next_seq_no;
+      if(type==1){
+          newReturnDetails['f_return_tracking_no'].value =this.state.returnDetails.f_return_tracking_no.value;
+      }else if(type==2) {
+          newProductDetails['f_delivery_tracking_no'].value= this.state.productDetails.f_delivery_tracking_no.value;
+      }
+
+      if(!!response.data[0].smg.f_seq_no){
+          newNextSeqNo.value= response.data[0].smg.f_seq_no
+      }
+
+      if(!!response.data[0].smg.f_process_secondhand){
+          newReturnDetails['f_process_secondhand'].value = response.data[0].smg.f_process_secondhand;
       }
 
 
@@ -452,8 +460,8 @@ export default class App extends React.Component {
       errorStatus = true;
       errorMsg = `Failed to get data for tracking ${tracking}`;
     }
-
     this.setState({
+      next_seq_no:newNextSeqNo,
       productDetails: newProductDetails,
       returnDetails: newReturnDetails,
       errorStatus: errorStatus,
@@ -1399,7 +1407,8 @@ export default class App extends React.Component {
                          autoCorrect={false}
                          onChangeText={(text) => this.handleReturnUpdate('f_return_tracking_no', text)}
                          onSubmitEditing={async () => {
-                           await this.loadDetails(returnDetails.f_return_tracking_no.value);
+                           //await this.loadDetails(returnDetails.f_return_tracking_no.value,2);
+                           await this.handleScanReturnTracking(returnDetails.f_return_tracking_no.value);
                            this.focusNextField('6');
                          }}
                          ref='5'

@@ -27,9 +27,9 @@
     },
     "description": ""
   },
-  "apiServer": "http://192.168.0.104:53300",
-  "imageServer": "http://192.168.0.104:53500",
-  "smApiServer": "http://192.168.0.104:53300",
+  "apiServer": "http://192.168.1.123:53300",
+  "imageServer": "http://192.168.1.123:53500",
+  "smApiServer": "http://192.168.1.123:53300",
   "version": "1.4.3",
   "returnReasons": [
     {"value":"request_by_new_aim", "label":"Request By New Aim"},
@@ -49,13 +49,13 @@
     {"value":"fastway","label": "Fastway"},
     {"value":"toll", "label":"TOLL"},
     {"value":"auspost", "label":"auspost"},
-    {"value":"Customer's own", "label":"Customer's own"}
+    {"value":"customer_own", "label":"Customer's own"}
   ],
   "processTypes" : [
     {"label":"ASN","value":"asn"},
     {"label":"SecondHand","value":"second_hand"},
     {"label":"Dispose","value":"dispose"},
-    {"label":"SEV1","value":"SEV1"}
+    {"label":"SEV1","value":"sev"}
   ],
   "asnOptions": [
     "aa001",

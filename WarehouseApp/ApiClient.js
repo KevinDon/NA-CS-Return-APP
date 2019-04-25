@@ -1,8 +1,8 @@
 import {apiServer, imageServer, smApiServer} from './app.json';
 
 export default class ApiClient{
-  findDataByTracking = async tracking => {
-    let url = apiServer + `/csreturn/findDataByTracking?tracking=${tracking}`;
+  findDataByTracking = async (tracking,type) => {
+    let url = apiServer + `/csreturn/findDataByTracking?tracking=${tracking}`+ `&type=${type}`;
     let response = await fetch(url);
     return await response.json();
   };
