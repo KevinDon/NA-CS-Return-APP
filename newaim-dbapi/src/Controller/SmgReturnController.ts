@@ -1,6 +1,6 @@
 import "reflect-metadata";
 import {getRepository} from "typeorm";
-import {dl_return_remark} from "../Entity/SmgDlReturn.entity";
+import {dl_return_remark} from "../Entity/SmgDlReturnRemark.entity";
 
 class SmgReturnRemarkController{
     /*
@@ -40,14 +40,18 @@ class SmgReturnRemarkController{
             //this.getReturnRowById('52', dl_return_remark, connection);
         }).catch(error => console.log(error));
     }*/
-    // private remarkRepository = getRepository(dl_return_remark);
+    //private remarkRepository = getRepository(dl_return_remark);
     async getRowById(id){
         try{
-            let remarkRepository = getRepository(dl_return_remark);
-            return await remarkRepository.findOne(id);
+            //let remarkRepository = getRepository(dl_return_remark);
+            //return await this.remarkRepository.findOne(id);
         }catch(e){
             console.log('错误信息为：' + e)
         }
+    }
+    async getRowByField(field){
+        let remarkRepository = getRepository(dl_return_remark);
+        return await remarkRepository.findOne(field);
     }
 }
 

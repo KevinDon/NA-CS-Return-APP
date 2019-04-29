@@ -508,9 +508,11 @@ export default class CSReturnController {
 
 
     async testOrm(req, res){
-        let result = await SmgReturnRemarkControllerObj.getRowById(45);
+        let result = await SmgReturnRemarkControllerObj.getRowByField({ f_seq_no: "A20190425002"});
         result = AppUtil.dbRowFormat(result);
-        console.log(result.f_remark);
+        let response = AppUtil.responseJSON('1', [result], 'Query Successful', true);
+        res.send(response);
+        //console.log(result.f_remark);
     }
 }
 
