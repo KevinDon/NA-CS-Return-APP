@@ -1,6 +1,6 @@
 import * as mysql from 'mysql';
 import * as mssql from 'mssql';
-import {OmsDbConfig, SysDbConfig, PowerBIDbConfig, SalesMessageDbConfig} from "./Config";
+import {OmsDbConfig, SysDbConfig, PowerBIDbConfig, SalesMessageDbConfig} from "./Config/Config";
 
 class DbService {
     private omsDbConnection: any;

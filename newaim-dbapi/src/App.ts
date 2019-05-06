@@ -3,7 +3,7 @@ import * as bodyParser from "body-parser";
 import * as cors from "cors";
 import * as methodOverride from "method-override";
 import QueryController from "./QueryController";
-import {ServerConfig} from "./Config";
+import {ServerConfig} from "./Config/Config";
 import {dbInit} from "./Controller/SmgServerController";
 import CSReturnController from "./CSReturnController";
 

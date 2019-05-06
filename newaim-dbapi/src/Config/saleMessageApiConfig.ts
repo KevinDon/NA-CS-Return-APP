@@ -1,4 +1,4 @@
-const smgUrl = 'http://cslive.newaim.com.au/';
+const smgUrl = 'http://cs.newaim.com.au/';
 const SaleMessageApiConfig = {
     login: smgUrl + 'api/index/login',
     tracking: smgUrl + 'api/index/tracking',

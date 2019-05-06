@@ -7,10 +7,10 @@ const OmsDbConfig = {
 };
 
 const SalesMessageDbConfig = {
-    host     : '192.168.1.208',
+    host     : 'localhost',
     user     : 'root',
-    password : 'Dropship#123456',
-    database : 'salemessage_newaim_two',
+    password : '123456',
+    database : 'sale_message',
     connectTimeout : 50000,
     multipleStatements: true
 };

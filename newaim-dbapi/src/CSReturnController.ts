@@ -1,10 +1,11 @@
 import {DbServiceObj} from "./DbService";
-import AppUtil from "./AppUtil";
-import {SaleMessageApiConfig} from './saleMessageApi'
+import AppUtil from "./Core/AppUtil";
+import {SaleMessageApiConfig} from './Config/saleMessageApiConfig'
 import * as json2xls from 'json2xls';
 import * as stream from 'stream';
 import * as mysql from 'mysql';
-import {SmgReturnRemarkControllerObj} from "./Controller/SmgReturnController";
+import {SmgReturnRemarkControllerObj} from "./Controller/SmgReturnRemarkController";
+import {SmgReturnControllerObj} from "./Controller/SmgReturnController";
 
 
 enum ActionType {
@@ -426,12 +427,16 @@ export default class CSReturnController {
 
     async findDataBySeqNo(req, res) {
         let data = req.body;
-        let cmd = ` SELECT * FROM dl_return WHERE f_seq_no = '${data.seq_no}'`;
-        let remarkCmd = `SELECT f_remark FROM dl_return_remark WHERE f_seq_no='${data.seq_no}' ORDER BY id DESC LIMIT 1`;
-        let result = await DbServiceObj.executeSmQuery(cmd);
-        let remarkResult = await DbServiceObj.executeSmQuery(remarkCmd);
 
-        if (!!result && result.length > 0) result = JSON.parse(JSON.stringify(result[0]));
+        // let cmd = ` SELECT * FROM dl_return WHERE f_seq_no = '${data.seq_no}'`;
+        // let remarkCmd = `SELECT f_remark FROM dl_return_remark WHERE f_seq_no='${data.seq_no}' ORDER BY id DESC LIMIT 1`;
+        // let remarkResult = await DbServiceObj.executeSmQuery(remarkCmd);
+        // let result = await DbServiceObj.executeSmQuery(cmd);
+
+        let result = await SmgReturnControllerObj.getRowByField( {f_seq_no : data.seq_no});
+        let remarkResult = await SmgReturnRemarkControllerObj.getRowByField({ f_seq_no: "A20190425002"});
+
+        if (!!result) result = JSON.parse(JSON.stringify(result[0]));
         if (!!remarkResult && remarkResult.length > 0){
             remarkResult = JSON.parse(JSON.stringify(remarkResult[0]));
             result.f_note = remarkResult.f_remark;
@@ -439,6 +444,7 @@ export default class CSReturnController {
         else{
             result.f_note = ''
         }
+
         let response = AppUtil.responseJSON('1', [result], 'Query Successful', true);
         res.send(response);
     }
@@ -510,7 +516,8 @@ export default class CSReturnController {
     async testOrm(req, res){
         let result = await SmgReturnRemarkControllerObj.getRowByField({ f_seq_no: "A20190425002"});
         result = AppUtil.dbRowFormat(result);
-        let response = AppUtil.responseJSON('1', [result], 'Query Successful', true);
+        let response = AppUtil.responseJSON('1', [result],'Query Successful', true);
+        console.log(await SmgReturnControllerObj.getRowByRowId( 1));
         res.send(response);
         //console.log(result.f_remark);
     }

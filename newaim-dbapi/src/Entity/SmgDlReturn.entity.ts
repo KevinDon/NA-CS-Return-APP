@@ -1,7 +1,7 @@
 import {Entity, Column, PrimaryGeneratedColumn} from "typeorm";
 
-@Entity ('dl_return_test')
-export class dl_return_test {
+@Entity ()
+export class dl_return {
 
     @PrimaryGeneratedColumn()
     id: number;
