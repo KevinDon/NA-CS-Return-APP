@@ -1,5 +1,5 @@
 import "reflect-metadata";
-import {getRepository} from "typeorm";
+import {getRepository, getConnection} from "typeorm";
 import AppUtil from "../../../Core/AppUtil";
 
 export default class SmgController{
@@ -33,5 +33,13 @@ export default class SmgController{
             return {};
         else
             return AppUtil.dbRowFormat(result);
+    }
+    async insertRow(values){
+        return await getConnection()
+            .createQueryBuilder()
+            .insert()
+            .into(this.tableObj)
+            .values(values)
+            .execute();
     }
 }

@@ -6,6 +6,7 @@ import * as stream from 'stream';
 import * as mysql from 'mysql';
 import {SmgReturnRemarkControllerObj} from "./Controller/SmgReturnRemarkController";
 import {SmgReturnControllerObj} from "./Controller/SmgReturnController";
+import {SmgDlReturnAttachmentControllerObj} from "./Controller/SmgDlReturnAttachmentController";
 
 
 enum ActionType {
@@ -176,50 +177,43 @@ export default class CSReturnController {
         let placeholders = [];
         let values = [];
         let $operationHistory = {};
-        let images;
-        let selCmd = `SELECT *  FROM dl_return WHERE f_seq_no = "${requestData.f_seq_no}"`;
-        let selData = await DbServiceObj.executeSmQuery(selCmd);
-        let selDataObj;
-        if(selData.length > 0) selDataObj = JSON.parse(JSON.stringify(selData[0]));
+        let images = requestData['images'];
+        // let selCmd = `SELECT *  FROM dl_return WHERE f_seq_no = "${requestData.f_seq_no}"`;
+        // let selData = await DbServiceObj.executeSmQuery(selCmd);
+
+        let selData = await SmgReturnControllerObj.getRowByField( {f_seq_no : requestData.f_seq_no});
         for (let field of fields) {
             try{
                 if (requestData[field] == null || requestData[field] == undefined){
                     continue
-                }else if (!!requestData['images'] && requestData['images'].length > 0 && 'images' == field) {
-                    images = requestData['images'];
-                    requestData['images'] = '';
+                }else if ('images' == field) {
+                    // requestData['images'] =  '';
                     continue;
                 }
-                if(!!selDataObj && requestData[field] != selDataObj[field] && selData.length > 0 && field != 'images' && field != 'f_note' && field != 'f_lastupdate_userid' && (requestData[field] != '' && selDataObj[field] != null) || field != 'f_create_userid'){
-                    let newValue = !!requestData[field] ? requestData[field] : '';
-                    let oldValue = !!selDataObj[field] ? selDataObj[field] : '';
-                    $operationHistory[field] = {};
-                    $operationHistory[field][newValue] = oldValue;
-                }
-                if(field != 'images'){
-                    columns.push(field);
-                    placeholders.push('?');
-                    values.push(requestData[field]);
-                }
+                $operationHistory = await me.generateOperation(selData, requestData, field, $operationHistory);
+                columns.push(field);
+                placeholders.push('?');
+                values.push(requestData[field]);
             }
             catch(e){
                 console.log(e);
             }
         }
         $operationHistory = await me.compareAttachmentHandle(requestData.f_seq_no,images, $operationHistory);
-        if (!!selDataObj && selData.length > 0) {
+
+        if (!!selData && Object.keys(selData).length > 0) {
             let createDate = AppUtil.momentToCN(); /*格式化当前时间时间*/
-            let imageData = await me.uploadImageHandle(selDataObj.id, requestData.f_seq_no, images);
+            await me.relatedTableProcessing(selData.id, requestData);
             columns.push('f_lastupdate_date');
             values.push(createDate);
             cmd = `UPDATE dl_return SET ${columns.join('=?, ')} =? WHERE f_seq_no= "${requestData.f_seq_no}"`;
             // await this.addAuditLog(selData.id, requestData.f_seq_no, requestData.f_create_userid, actionType, JSON.stringify(req.body)).then(function(){
-            // });
+            //});
             if(Object.keys($operationHistory).length != 0){
-                let historyCmd = `INSERT INTO dl_return_operation_history (f_returnid, f_seq_no, f_operation_history, f_create_userid, f_create_date)  VALUES('${selDataObj.id}', '${requestData.f_seq_no}', '${JSON.stringify($operationHistory)}', '${requestData.f_lastupdate_userid}', '${createDate}')`;
+                let historyCmd = `INSERT INTO dl_return_operation_history (f_returnid, f_seq_no, f_operation_history, f_create_userid, f_create_date)  VALUES('${selData.id}', '${requestData.f_seq_no}', '${JSON.stringify($operationHistory)}', '${requestData.f_lastupdate_userid}', '${createDate}')`;
                 await DbServiceObj.executeSmQuery(historyCmd)
             }
-            await me.saveReturnNote(selDataObj.id, requestData);
+            await me.saveReturnNote(selData.id, requestData);
             await DbServiceObj.updateSmQuery(cmd, values);
             let response = AppUtil.responseJSON('1', [], 'Update successful.', true);
             res.send(response);
@@ -444,17 +438,18 @@ export default class CSReturnController {
     async compareAttachmentHandle(seq_no, images, operationHistory){
         let documents = [];
         let imagesArr = [];
-        let cmd = `SELECT f_file_name FROM dl_return_attachment WHERE f_seq_no = '${seq_no}'`;
-        let selData = await DbServiceObj.executeSmQuery(cmd);
-        if (!!selData && selData.length > 0){
-            selData = JSON.parse(JSON.stringify(selData));
+
+        // let cmd = `SELECT f_file_name FROM dl_return_attachment WHERE f_seq_no = '${seq_no}'`;
+        // let selData = await DbServiceObj.executeSmQuery(cmd);
+
+        let selData = await SmgDlReturnAttachmentControllerObj.getRowByField({f_seq_no : seq_no});
+
+        if (!!selData && Object.keys(selData).length > 0){
             for(let index in selData){
                 documents.push(selData[index]['f_file_name']);
             }
         }
-        else{
-                selData='';
-        }
+
         if(!!images && images.length > 0){
             for(let index = 0; index < images.length; index ++){
                 imagesArr.push(images[index].filename);
@@ -486,20 +481,33 @@ export default class CSReturnController {
             }
         }
     }
+
     async uploadImageHandle(returnId, seqNo, images) {
+        console.log(images);
+        //todo
+        let rowField = ['f_type', 'f_file_url', 'f_file_size', 'f_file_name'];
+        let proImages = [];
         if(!!images && images.length > 0){
             let createDate = AppUtil.momentToCN()
             if (!!images && images.length > 0) {
                 for (let index = 0; index < images.length; index++) {
-                    let attachmentCmd = '';
+                    let attachment = {};
+                    let image = images[index];
                     try {
-                        let image = images[index];
-                        attachmentCmd = `insert into dl_return_attachment (f_returnid, f_seq_no, f_type, f_file_url, f_file_size, f_create_date, f_file_name) values('${returnId}','${seqNo}', '${image.type}',  '${image.url}', '${image.size}', '${createDate}', '${image.filename}')`;
-                        DbServiceObj.executeSmQuery(attachmentCmd);
+                        attachment['f_returnid'] = returnId;
+                        attachment['f_seq_no'] = seqNo;
+                        attachment['f_create_date'] = createDate;
+
+                        attachment['f_type'] = image.type;
+                        attachment['f_file_url'] = image.url;
+                        attachment['f_file_size'] = image.size;
+                        attachment['f_file_name'] = image.filename;
+                        proImages.push(attachment);
                     } catch (e) {
                         console.log(e);
                     }
                 }
+                SmgDlReturnAttachmentControllerObj.insertRow(proImages);
             }
         }
     }
@@ -512,6 +520,34 @@ export default class CSReturnController {
         console.log(await SmgReturnControllerObj.getRowByRowId( 1));
         res.send(response);
         //console.log(result.f_remark);
+    }
+
+    /**
+     *
+     * @param oldData
+     * @param newData
+     * @param field
+     * @param operationHistory
+     */
+    async generateOperation(oldData, newData, field, operationHistory){
+        //operation 过滤ID、Images  field != 'images' && field != 'f_note' && field != 'f_lastupdate_userid' || field != 'f_create_userid'
+        let filterArr = ['images', 'f_note', 'f_lastupdate_userid', 'f_create_userid'];
+        for(let index in filterArr){
+            if(field == filterArr[index]) return operationHistory;
+        }
+
+        //保存时对比新旧值
+        if((newData[field] != '' && newData[field] != null) && Object.keys(oldData).length > 0 && newData[field] != oldData[field]) {
+            let newValue = !!newData[field] ? newData[field] : '';
+            let oldValue = !!oldData[field] ? oldData[field] : '';
+            operationHistory[field] = {};
+            operationHistory[field][newValue] = oldValue;
+        }
+        return operationHistory;
+    }
+
+    async relatedTableProcessing(id, requestData){
+        await this.uploadImageHandle(id, requestData.f_seq_no, requestData.images);
     }
 }
 
