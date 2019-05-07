@@ -9,22 +9,29 @@ export default class SmgController{
     constructor(name) {
         this.tableObj = name;
     }
-    async getTableName(){
+    async getTable(){
         return this.tableObj;
     }
 
     async getRowByField(field){
         let remarkRepository = getRepository(this.tableObj);
-        return AppUtil.dbRowFormat(await remarkRepository.findOne(field));
+        return this.checkRow(await remarkRepository.findOne(field));
     }
 
     async getRowByRowId(id){
         let remarkRepository = getRepository(this.tableObj);
-        return AppUtil.dbRowFormat(await remarkRepository.findOne(id));
+        return this.checkRow(await remarkRepository.findOne(id));
     }
 
     async getAllRow(){
         let remarkRepository = getRepository(this.tableObj);
-        return AppUtil.dbRowFormat((await remarkRepository.find()));
+        return this.checkRow((await remarkRepository.find()));
+    }
+
+    async checkRow(result){
+        if(result == undefined)
+            return {};
+        else
+            return AppUtil.dbRowFormat(result);
     }
 }

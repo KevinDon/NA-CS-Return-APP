@@ -428,20 +428,12 @@ export default class CSReturnController {
     async findDataBySeqNo(req, res) {
         let data = req.body;
 
-        // let cmd = ` SELECT * FROM dl_return WHERE f_seq_no = '${data.seq_no}'`;
-        // let remarkCmd = `SELECT f_remark FROM dl_return_remark WHERE f_seq_no='${data.seq_no}' ORDER BY id DESC LIMIT 1`;
-        // let remarkResult = await DbServiceObj.executeSmQuery(remarkCmd);
-        // let result = await DbServiceObj.executeSmQuery(cmd);
-
         let result = await SmgReturnControllerObj.getRowByField( {f_seq_no : data.seq_no});
-        let remarkResult = await SmgReturnRemarkControllerObj.getRowByField({ f_seq_no: "A20190425002"});
+        let remarkResult = await SmgReturnRemarkControllerObj.getRowByField({ f_seq_no: data.seq_no});
 
-        if (!!result) result = JSON.parse(JSON.stringify(result[0]));
-        if (!!remarkResult && remarkResult.length > 0){
-            remarkResult = JSON.parse(JSON.stringify(remarkResult[0]));
+        if (!!remarkResult && Object.keys(remarkResult).length > 0){
             result.f_note = remarkResult.f_remark;
-        }
-        else{
+        }else{
             result.f_note = ''
         }
 
