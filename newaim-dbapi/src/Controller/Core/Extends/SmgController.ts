@@ -1,16 +1,20 @@
 import "reflect-metadata";
 import {getRepository, getConnection} from "typeorm";
-import AppUtil from "../../../Core/AppUtil";
+import AppUtil from "../../../lib/AppUtil";
 
 export default class SmgController{
 
     private tableObj;
 
     constructor(name) {
-        this.tableObj = name;
+        this.tableObj = name
     }
     async getTable(){
-        return this.tableObj;
+        return this.tableObj
+    }
+
+    async getTableField(){
+        return await getConnection().getMetadata(this.tableObj).ownColumns.map(column => column.propertyName);
     }
 
     async getRowByField(field){
@@ -34,12 +38,38 @@ export default class SmgController{
         else
             return AppUtil.dbRowFormat(result);
     }
+
+    /**
+     *
+     * @param values
+     * @return ids []
+     */
     async insertRow(values){
-        return await getConnection()
+        let reslut = await getConnection()
             .createQueryBuilder()
             .insert()
             .into(this.tableObj)
             .values(values)
             .execute();
+
+        return reslut.identifiers;
+    }
+
+    /**
+     *
+     * @param values object
+     * @param where object field value
+     */
+    async updateRow(values, where){
+        try {
+            await getConnection()
+                .createQueryBuilder()
+                .update(this.tableObj)
+                .set(values)
+                .where(where.filed, where.value)
+                .execute();
+        } catch (e) {
+            console.log(e)
+        }
     }
 }

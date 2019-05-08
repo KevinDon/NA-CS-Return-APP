@@ -1,5 +1,5 @@
 import {DbServiceObj} from "./DbService";
-import AppUtil from "./Core/AppUtil";
+import AppUtil from "./lib/AppUtil";
 import {SaleMessageApiConfig} from './Config/saleMessageApiConfig'
 import * as json2xls from 'json2xls';
 import * as stream from 'stream';
@@ -7,6 +7,7 @@ import * as mysql from 'mysql';
 import {SmgReturnRemarkControllerObj} from "./Controller/SmgReturnRemarkController";
 import {SmgReturnControllerObj} from "./Controller/SmgReturnController";
 import {SmgDlReturnAttachmentControllerObj} from "./Controller/SmgDlReturnAttachmentController";
+import {SmgReturnOperationHistoryControllerObj} from "./Controller/SmgReturnOperationHistory";
 
 
 enum ActionType {
@@ -159,12 +160,6 @@ export default class CSReturnController {
         let requestData = req.body;
         let cmd = '';
         let actionType = null;
-        /*
-        let fields = ['barcode', 'delivery_tracking_no', 'customer_order_no', 'sku',
-            'job_no', 'process_type', 'process_asn', 'process_secondhand', 'result',
-            'post_est', 'unit_cost', 'ticket_no', 'return_reason', 'return_courier_name',
-            'return_tracking_no', 'order_no', 'order_user_nick', 'note', 'user'
-        ];  */
         requestData['requestData'] = -1;
         let fields = [
             'f_barcode', 'f_delivery_tracking_no', 'f_customer_order_no', 'f_sku', 'f_seq_no', 'f_receiver',
@@ -173,13 +168,10 @@ export default class CSReturnController {
             'f_return_tracking_no', 'f_order_no', 'f_note', 'f_create_userid', 'f_create_username',
             'images',
         ];
-        let columns = [];
-        let placeholders = [];
-        let values = [];
+        let columnsValue = {};
         let $operationHistory = {};
         let images = requestData['images'];
-        // let selCmd = `SELECT *  FROM dl_return WHERE f_seq_no = "${requestData.f_seq_no}"`;
-        // let selData = await DbServiceObj.executeSmQuery(selCmd);
+        let currentDate = AppUtil.momentToCN(); /*格式化当前时间时间*/
 
         let selData = await SmgReturnControllerObj.getRowByField( {f_seq_no : requestData.f_seq_no});
         for (let field of fields) {
@@ -191,9 +183,7 @@ export default class CSReturnController {
                     continue;
                 }
                 $operationHistory = await me.generateOperation(selData, requestData, field, $operationHistory);
-                columns.push(field);
-                placeholders.push('?');
-                values.push(requestData[field]);
+                columnsValue[field] = requestData[field];
             }
             catch(e){
                 console.log(e);
@@ -202,37 +192,41 @@ export default class CSReturnController {
         $operationHistory = await me.compareAttachmentHandle(requestData.f_seq_no,images, $operationHistory);
 
         if (!!selData && Object.keys(selData).length > 0) {
-            let createDate = AppUtil.momentToCN(); /*格式化当前时间时间*/
+            //Update
+            //增加最后修改时间
+            columnsValue['f_lastupdate_date'] = currentDate;
             await me.relatedTableProcessing(selData.id, requestData);
-            columns.push('f_lastupdate_date');
-            values.push(createDate);
-            cmd = `UPDATE dl_return SET ${columns.join('=?, ')} =? WHERE f_seq_no= "${requestData.f_seq_no}"`;
-            // await this.addAuditLog(selData.id, requestData.f_seq_no, requestData.f_create_userid, actionType, JSON.stringify(req.body)).then(function(){
-            //});
             if(Object.keys($operationHistory).length != 0){
-                let historyCmd = `INSERT INTO dl_return_operation_history (f_returnid, f_seq_no, f_operation_history, f_create_userid, f_create_date)  VALUES('${selData.id}', '${requestData.f_seq_no}', '${JSON.stringify($operationHistory)}', '${requestData.f_lastupdate_userid}', '${createDate}')`;
-                await DbServiceObj.executeSmQuery(historyCmd)
+                let history = {};
+                //TODO
+                let historyField = await SmgReturnOperationHistoryControllerObj.getTableField();
+                //处理数据
+                history['f_returnid'] =selData.id;
+                history['f_seq_no'] = requestData.f_seq_no;
+                history['f_operation_history'] = JSON.stringify($operationHistory);
+                history['f_create_userid'] = requestData.f_lastupdate_userid;
+                history['f_create_date'] = currentDate;
+                await SmgReturnOperationHistoryControllerObj.insertRow(history);
             }
-            await me.saveReturnNote(selData.id, requestData);
-            await DbServiceObj.updateSmQuery(cmd, values);
+
+            await SmgReturnControllerObj.updateRow(
+                columnsValue,
+                {
+                    field : 'f_seq_no= :f_seq_no',
+                    value: {f_seq_no : requestData.f_seq_no}
+                });
             let response = AppUtil.responseJSON('1', [], 'Update successful.', true);
             res.send(response);
         }else {
-            //insert
+            //Insert
             //增加创建时间
-            let createDate = AppUtil.momentToCN();
-            columns.push('f_create_date');
-            placeholders.push('?');
-            values.push(createDate);
-            cmd = mysql.format(`INSERT INTO dl_return (${columns.join()})  VALUES(${placeholders.join(',')})`, values);
-            let data = await DbServiceObj.executeSmQuery(cmd);
-            await me.saveReturnNote(data.insertId, requestData);
-            if (data.length > 0) data = JSON.parse(JSON.stringify(data[0]));
+            columnsValue['f_create_date'] = currentDate;
+            let insertIds = await SmgReturnControllerObj.insertRow(columnsValue);
+            await me.saveReturnNote(insertIds[0].id, requestData);
             if(!!images && images.length > 0){
-                let imageResponse = this.uploadImageHandle(data.insertId, requestData.f_seq_no, images);
+                await this.uploadImageHandle(insertIds[0].id, requestData.f_seq_no, images);
             }
             let response = AppUtil.responseJSON('1', [], 'Save Successfully', true);
-            //await this.addAuditLog(data.insertId, requestData.f_seq_no, requestData.f_create_userid, actionType, JSON.stringify(req.body));
             res.send(response);
         }
     }
@@ -483,7 +477,6 @@ export default class CSReturnController {
     }
 
     async uploadImageHandle(returnId, seqNo, images) {
-        console.log(images);
         //todo
         let rowField = ['f_type', 'f_file_url', 'f_file_size', 'f_file_name'];
         let proImages = [];
@@ -507,17 +500,18 @@ export default class CSReturnController {
                         console.log(e);
                     }
                 }
-                SmgDlReturnAttachmentControllerObj.insertRow(proImages);
+                await SmgDlReturnAttachmentControllerObj.insertRow(proImages);
             }
         }
     }
 
 
     async testOrm(req, res){
-        let result = await SmgReturnRemarkControllerObj.getRowByField({ f_seq_no: "A20190425002"});
+        let result = await SmgReturnOperationHistoryControllerObj.getTableField();
+        console.log(result);
+        return ;
         result = AppUtil.dbRowFormat(result);
         let response = AppUtil.responseJSON('1', [result],'Query Successful', true);
-        console.log(await SmgReturnControllerObj.getRowByRowId( 1));
         res.send(response);
         //console.log(result.f_remark);
     }
@@ -548,6 +542,7 @@ export default class CSReturnController {
 
     async relatedTableProcessing(id, requestData){
         await this.uploadImageHandle(id, requestData.f_seq_no, requestData.images);
+        await this.saveReturnNote(id, requestData);
     }
 }
 

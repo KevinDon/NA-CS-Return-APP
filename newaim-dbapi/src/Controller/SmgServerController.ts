@@ -3,12 +3,14 @@ import {ormConfig} from "../Config/ormConfig";
 import {dl_return_remark} from "../Entity/SmgDlReturnRemark.entity";
 import {dl_return} from "../Entity/SmgDlReturn.entity";
 import {dl_return_attachment} from "../Entity/SmgDlReturnAttachment.entity";
+import {dl_return_operation_history} from "../Entity/SmgDlReturnOperationHistory.entity";
 
 export const dbInit = async()  => {
     //注册数据表
     ormConfig['entities'] = [
-        dl_return_remark,
         dl_return,
+        dl_return_remark,
+		dl_return_operation_history,
         dl_return_attachment
     ];
     await createConnection(ormConfig).then(async  connection => {
