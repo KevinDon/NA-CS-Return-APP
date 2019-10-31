@@ -35,8 +35,8 @@ export default class AppUtil{
 
     /**
      *
-     * @param conf
-     * @param callback
+     * @param confzzzz
+     * @param callbackz
      */
     static async  requestPostJson(conf, callback){
         return  new Promise((resolve, reject) => {
@@ -78,9 +78,9 @@ export default class AppUtil{
         $data["secret"]  = md5($params + $key);
         return $data;
     }
-    
+
     static momentToCN(){
-        return moment(new Date()).subtract(10, 'h').add(8, 'h').format('YYYY-MM-DD HH:mm:ss');/*格式化当前时间时间*/
+        return moment(new Date()).subtract(11, 'h').add(8, 'h').format('YYYY-MM-DD HH:mm:ss');/*格式化当前时间时间*/
     }
 
     static dbRowFormat(result){
