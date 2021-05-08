@@ -26,7 +26,7 @@
     "mysql": "^2.16.0",
     "request": "^2.88.0",
     "stream": "0.0.2",
-    "typeorm": "^0.2.16"
+    "typeorm": "^0.2.25"
   },
   "devDependencies": {
     "copyfiles": "^2.1.0"
