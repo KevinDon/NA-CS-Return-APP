@@ -18,7 +18,7 @@
     "fs": "0.0.1-security",
     "json2xls": "^0.1.2",
     "ksort": "0.0.6",
-    "locutus": "^2.0.10",
+    "locutus": "^2.0.15",
     "md5": "^2.2.1",
     "method-override": "^3.0.0",
     "moment": "^2.24.0",
